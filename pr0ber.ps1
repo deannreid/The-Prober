@@ -70,6 +70,7 @@ function dsplMessage {
         "success" { Write-Host -ForegroundColor Green "{✓} $Message" }
         "error" { Write-Host -ForegroundColor Red "{!} $Message" }
         "disabled" { Write-Host -ForegroundColor Gray "{X} $Message" }
+        "enabled" { Write-Host -ForegroundColor Yellow - "{X} $Message" }
         default { Write-Host "$Message" }
     }
 }
@@ -446,7 +447,6 @@ function Get-PasswordPolicy {
 function Get-LocalUsers {
     dsplMessage "Local User Accounts" "info"
     Write-Host "==================="
-
     try {
         # Retrieve local user accounts using Get-WmiObject
         $localUsers = Get-WmiObject -Class Win32_UserAccount | Where-Object { $_.LocalAccount -eq $true }
@@ -457,6 +457,12 @@ function Get-LocalUsers {
                 Write-Host "Full Name: $($user.FullName)"
                 Write-Host "Description: $($user.Description)"
                 Write-Host "Account Type: $($user.AccountType)"
+                if ($user.Disabled -eq $true) {
+                    dsplMessage "    Status: Disabled" "disabled"
+                } else {
+                    Write-Host "        Status: Enabled       " -ForegroundColor Green -NoNewline; 
+                    dsplMessage " This user is enabled worth a look" "error" 
+                }
                 Write-Host ""
             }
         } else {
@@ -468,7 +474,7 @@ function Get-LocalUsers {
     Write-Host "============================================================================================"
     Write-Host ""
 }
-
+dsplMessage "    Read: No" "disabled" 
 function Get-LocalGroups {
     dsplMessage "Local Groups" "info"
     Write-Host "============"
@@ -530,7 +536,7 @@ function Get-InstalledSoftware {
 
 function Get-OpenPorts {
     dsplMessage "Open Ports" "info"
-    dsplMessage "===========" "info"
+    Write-Host "==========="
     try {
         # Define an array of common ports to check for Windows Server
         $ports = @(80, 443, 3389, 445, 135, 137, 139, 1433, 1521, 3306, 5985, 5986, 464, 3268, 3269, 53, 88, 389, 636)
@@ -543,19 +549,22 @@ function Get-OpenPorts {
             dsplMessage "$message" "info"
         }
 
-        dsplProgress "Initiating port checks..."
-
         foreach ($port in $ports) {
             # Start an asynchronous task for each port check
             $task = {
                 param($port)
-                $result = Test-NetConnection -ComputerName localhost -Port $port -InformationLevel Quiet -ErrorAction SilentlyContinue
-                if ($result.TcpTestSucceeded) {
-                    [PSCustomObject]@{
-                        Port = $port
-                        RemoteAddress = $result.RemoteAddress
-                        RemotePort = $result.RemotePort
+                try {
+                    $result = Test-NetConnection -ComputerName localhost -Port $port -InformationLevel Quiet -ErrorAction Stop
+                    if ($result.TcpTestSucceeded) {
+                        [PSCustomObject]@{
+                            Port = $port
+                            RemoteAddress = $result.RemoteAddress
+                            RemotePort = $result.RemotePort
+                        }
                     }
+                } catch {
+                    Write-Warning $_.Exception.Message
+                    return $null
                 }
             }
 
@@ -577,17 +586,21 @@ function Get-OpenPorts {
             if ($job.State -eq 'Completed') {
                 $result = Receive-Job -Job $job
                 if ($result) {
-                    Write-Host "Port $($result.Port) is open"
+                    Write-Host "        Status: Open       " -ForegroundColor Green -NoNewline;
+                    dsplMessage " This port is open worth a look" "error"
                     Write-Host "    Remote Address: $($result.RemoteAddress)"
                     Write-Host "    Remote Port: $($result.RemotePort)"
                     Write-Host ""
                 }
+            } elseif ($job.State -eq 'Running') {
+                Write-Host 
+                dsplMessage "Port check for job $($job.Id) timed out." "disabled"
             } else {
-                Write-Host "Port check for job $($job.Id) timed out."
+                Write-Host 
+                dsplMessage "Port check for job $($job.Id) failed or is closed." "disabled"
             }
             Remove-Job -Job $job
         }
-
         dsplProgress "Port scanning finished."
     } catch {
         dsplMessage "Error occurred while checking open ports: $_" "error"
@@ -1490,9 +1503,71 @@ function Get-RecentCommands {
 
 ### Work In Progress
 function Get-CommonFolderPermissions {
-#TODO: If Specific Str then Highlight as possible vuln
+    dsplMessage "Folder Permissions" "info"
+    dsplMessage "==================" "info"
 
+    try {
+        # Define an array of common folder paths to check
+        $folders = @(
+            "C:\Windows",
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            "C:\Users",
+            "C:\Users\Public",
+            "C:\Temp",
+            "C:\Windows\Temp",
+            "C:\System Volume Information",
+            "C:\ProgramData",
+            "C:\Users\Deann\Desktop\NoNameEnumScript"
+        )
+
+        # Get the current user
+        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
+        foreach ($folder in $folders) {
+            try {
+                if (Test-Path -Path $folder) {
+                    $acl = Get-Acl -Path $folder
+                    $owner = $acl.Owner
+                    $accessRules = $acl.Access | Where-Object { $_.IdentityReference -eq $currentUser }
+
+                    # Check permissions for the current user
+                    $hasRead = $false
+                    $hasWrite = $false
+                    $hasExecute = $false
+                    foreach ($rule in $accessRules) {
+                        if ($rule.AccessControlType -eq "Allow") {
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Read) { $hasRead = $true }
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Write) { $hasWrite = $true }
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile) { $hasExecute = $true }
+                        }
+                    }
+                    
+                    # Display the folder permissions
+                    Write-Host "Folder: $folder"
+                    Write-Host "  Owner: $owner"
+                    Write-Host "  Current User: $currentUser"
+                    Write-Host "  Permissions:"
+                    if ($hasRead) { dsplMessage "    Read: Yes" "info" } else { dsplMessage "    Read: No" "disabled" }
+                    if ($hasWrite) { Write-Host "        Write: Yes       " -ForegroundColor Green -NoNewline;  dsplMessage "    This folder has write permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
+                    if ($hasExecute) { Write-Host "        Execute: Yes     " -ForegroundColor Green -NoNewline;  dsplMessage "    This folder has execute permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
+                    Write-Host ""
+                } else {
+                    Write-Host "Folder: $folder"
+                    Write-Host "  Status: Does not exist"
+                    Write-Host ""
+                }
+            } catch {
+                Write-Host "Error occurred while checking permissions for folder: $folder. Error: $_" -ForegroundColor Red
+            }
+        }
+    } catch {
+        dsplMessage "Error occurred while checking folder permissions: $_" "error"
+    }
+    Write-Host "============================================================================================"
+    Write-Host ""
 }
+
 
 
 ############################################################
@@ -1507,40 +1582,43 @@ function Main {
 
     # Define the array of functions to call
     $functionsToCall = @(
-        @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
-        @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
-        @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
-        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
-        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
-        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
-        @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
-        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
-        @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
-        @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
-        @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
-        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
+        #@{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
+        #@{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
+        #@{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
+        #@{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
+        #@{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
+        #@{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
+        #@{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
+        #@{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
+        #@{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
+        #@{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
+        #@{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
+        #@{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
         @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers } }
-        @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
-        @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
+        #@{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
+        #@{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
         @{ Name = "OpenPorts"; ScriptBlock = { Get-OpenPorts } }
-        @{ Name = "Netstat"; ScriptBlock = { Get-Netstat } }
-        @{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules } }
-        @{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares } }
-        @{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles } }
-        @{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms } }
-        @{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs } }
-        @{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs } }
-        @{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings } }
-        @{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables } }
-        @{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions } }
-        @{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList } }
-        @{ Name = "UserRights"; ScriptBlock = { Get-UserRights } }
-        @{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates } }
-        @{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices } }
-        @{ Name = "Printers"; ScriptBlock = { Get-Printers } }
-        @{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration } }
-        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation } }
-        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions } }
+        #@{ Name = "Netstat"; ScriptBlock = { Get-Netstat } }
+        #@{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules } }
+        #@{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares } }
+        #@{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles } }
+        #@{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms } }
+        #@{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs } }
+        #@{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs } }
+        #@{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings } }
+        #@{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables } }
+        #@{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions } }
+        #@{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList } }
+        #@{ Name = "UserRights"; ScriptBlock = { Get-UserRights } }
+        #@{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates } }
+        #@{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices } }
+        #@{ Name = "Printers"; ScriptBlock = { Get-Printers } }
+        #@{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration } }
+        #@{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation } }
+        #@{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions } }
+        @{ Name = "CommonFolderPermissions"; ScriptBlock = { Get-CommonFolderPermissions } }
+
+        
         # Add more functions here as needed
     )
 

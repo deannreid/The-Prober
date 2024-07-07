@@ -1497,76 +1497,41 @@ function Main {
 
     # Define the array of functions to call
     $functionsToCall = @(
-        @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "OpenPorts"; ScriptBlock = { Get-OpenPorts } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "Netstat"; ScriptBlock = { Get-Netstat } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "UserRights"; ScriptBlock = { Get-UserRights } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "Printers"; ScriptBlock = { Get-Printers } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions } }
-        Write-Host "============================================================================================"; Write-Host ""
-        @{ Name = "CommonFolderPermissions"; ScriptBlock = { Get-CommonFolderPermissions } }
-        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "OpenPorts"; ScriptBlock = { Get-OpenPorts; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Netstat"; ScriptBlock = { Get-Netstat; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UserRights"; ScriptBlock = { Get-UserRights; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Printers"; ScriptBlock = { Get-Printers; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "CommonFolderPermissions"; ScriptBlock = { Get-CommonFolderPermissions; Write-Host "================================================================="; Write-Host "" } }
 
         # Add more functions here as needed
     )

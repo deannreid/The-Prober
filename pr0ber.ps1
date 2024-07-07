@@ -21,7 +21,7 @@
     Captures a bunch of things, saving results to "C:\Scans" without creating a configuration file.
 
 .NOTES
-    Script Version: 0.1
+    Script Version: 0.4
     Created by Dean with a touch of care.
     For more details, visit: https://github.com/deannreid/The-Prober
 
@@ -105,7 +105,7 @@ function dsplVersion {
     Write-Host -ForegroundColor Cyan @"
 ==============================================
 | The Prober - Windows Enumaration Tool      |
-| Version: 1.9.5                             |
+| Version: 0.4                               |
 |                                            |
 | Created by Dean with a touch of care       |
 ==============================================
@@ -171,7 +171,7 @@ function fncWriteToFile {
         #$scriptDir = $PSScriptRoot
         #$fileName = Join-Path -Path $scriptDir -ChildPath "$hostName-$functionName.txt"
 
-        #Write-Host "Writing output of $functionName to $fileName"
+        Write-Host "Writing output of $functionName to $fileName"
         $output | Out-File -FilePath $fileName -Encoding utf8
         Write-Host "Successfully wrote output of $functionName to $fileName"
     } catch {
@@ -188,54 +188,52 @@ function Get-SystemInformation {
 
     # Get computer name
     $computerName = $env:COMPUTERNAME
-    Write-Host "Computer Name: $computerName"
+    dsplMessage "Computer Name: $computerName" "info"
 
     # Get operating system details
     $operatingSystem = (Get-WmiObject Win32_OperatingSystem).Caption
-    Write-Host "Operating System: $operatingSystem"
+    dsplMessage "Operating System: $operatingSystem" "warning"
 
     # Get system architecture
     $architecture = (Get-WmiObject Win32_ComputerSystem).SystemType
-    Write-Host "System Architecture: $architecture"
+    dsplMessage "System Architecture: $architecture" "info"
 
     # Get current logged-on user
     $currentUser = $env:USERNAME
-    Write-Host "Current User: $currentUser"
+    dsplMessage "Current User: $currentUser" "info"
 
     # Get last boot time
     $lastBootTime = (Get-WmiObject Win32_OperatingSystem).LastBootUpTime
     $lastBootTime = [Management.ManagementDateTimeConverter]::ToDateTime($lastBootTime)
-    Write-Host "Last Boot Time: $lastBootTime"
+    dsplMessage "Last Boot Time: $lastBootTime" "info"
 
     # Get uptime
     $uptime = (Get-Date) - (Get-WmiObject Win32_OperatingSystem).ConvertToDateTime((Get-WmiObject Win32_OperatingSystem).LastBootUpTime)
-    Write-Host "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
+    dsplMessage "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes" "info"
 
     # Get BIOS information
     $bios = Get-WmiObject Win32_BIOS
-    Write-Host "BIOS Version: $($bios.SMBIOSBIOSVersion)"
-    Write-Host "Manufacturer: $($bios.Manufacturer)"
-    Write-Host "Release Date: $($bios.ConvertToDateTime($bios.ReleaseDate))"
+    dsplMessage "BIOS Version: $($bios.SMBIOSBIOSVersion)" "info"
+    dsplMessage "Manufacturer: $($bios.Manufacturer)" "info"
+    dsplMessage "Release Date: $($bios.ConvertToDateTime($bios.ReleaseDate))" "info"
 
     # Get physical memory (RAM)
     $memory = Get-WmiObject Win32_ComputerSystem
     $totalMemoryGB = [math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
-    Write-Host "Total Physical Memory: $totalMemoryGB GB"
+    dsplMessage "Total Physical Memory: $totalMemoryGB GB" "info"
 
     # Get processor information
     $processor = Get-WmiObject Win32_Processor
-    Write-Host "Processor: $($processor.Name)"
-    Write-Host "Number of Cores: $($processor.NumberOfCores)"
-    Write-Host "Max Clock Speed: $($processor.MaxClockSpeed) MHz"
+    dsplMessage "Processor: $($processor.Name)" "info"
+    dsplMessage "Number of Cores: $($processor.NumberOfCores)" "info"
+    dsplMessage "Max Clock Speed: $($processor.MaxClockSpeed) MHz" "info"
 
     # Get system drive information
     $systemDrive = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
     $systemDriveSizeGB = [math]::Round($systemDrive.Size / 1GB, 2)
     $systemDriveFreeSpaceGB = [math]::Round($systemDrive.FreeSpace / 1GB, 2)
-    Write-Host "System Drive (C:) Size: $systemDriveSizeGB GB"
-    Write-Host "System Drive (C:) Free Space: $systemDriveFreeSpaceGB GB"
-    Write-Host "============================================================================================"
-    Write-Host ""
+    dsplMessage "System Drive (C:) Size: $systemDriveSizeGB GB" "info"
+    dsplMessage "System Drive (C:) Free Space: $systemDriveFreeSpaceGB GB" "info"
 }
 
 function Get-AvailableDrives {
@@ -267,8 +265,6 @@ function Get-AvailableDrives {
 
         Write-Host ""
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-AntivirusDetections {
@@ -304,8 +300,6 @@ function Get-AntivirusDetections {
     } else {
         dsplMessage "No antivirus products found." "info"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-InstalledKB {
@@ -343,8 +337,6 @@ function Get-InstalledKB {
     } else {
         dsplMessage "No installed KB updates found." "info"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-RunningServices {
@@ -408,8 +400,6 @@ function Get-RunningServices {
     } else {
         dsplMessage "No running services found." "info"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-PasswordPolicy {
@@ -440,8 +430,6 @@ function Get-PasswordPolicy {
     } catch {
         dsplMessage "Error occurred while retrieving password policy settings: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-LocalUsers {
@@ -470,11 +458,9 @@ function Get-LocalUsers {
         }
     } catch {
         dsplMessage "Error occurred while retrieving local user accounts: $_" "error"
-    }
-    Write-Host "============================================================================================"
-    Write-Host ""
+    } 
 }
-dsplMessage "    Read: No" "disabled" 
+
 function Get-LocalGroups {
     dsplMessage "Local Groups" "info"
     Write-Host "============"
@@ -495,8 +481,6 @@ function Get-LocalGroups {
     } catch {
         dsplMessage "Error occurred while retrieving local groups: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-InstalledSoftware {
@@ -530,8 +514,6 @@ function Get-InstalledSoftware {
     } catch {
         dsplMessage "Error occurred while retrieving installed software: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-OpenPorts {
@@ -605,8 +587,6 @@ function Get-OpenPorts {
     } catch {
         dsplMessage "Error occurred while checking open ports: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-Netstat {
@@ -641,8 +621,6 @@ function Get-Netstat {
     } catch {
         dsplMessage "Error occurred while running netstat: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-FirewallRules {
@@ -672,9 +650,6 @@ function Get-FirewallRules {
     } catch {
         dsplMessage "Error occurred while retrieving firewall rules: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-NetworkShares {
@@ -697,9 +672,6 @@ function Get-NetworkShares {
     } catch {
         dsplMessage "Error occurred while retrieving network shares: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-RecentFiles {
@@ -725,9 +697,6 @@ function Get-RecentFiles {
     } catch {
         dsplMessage "Error occurred while retrieving recent files: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-StartupPrograms {
@@ -753,9 +722,6 @@ function Get-StartupPrograms {
     } catch {
         dsplMessage "Error occurred while retrieving startup programs: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-SystemLogs {
@@ -788,9 +754,6 @@ function Get-SystemLogs {
             dsplMessage "Error occurred while retrieving system logs: $_" "error"
         }
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-EventLogs {
@@ -826,9 +789,6 @@ function Get-EventLogs {
     } catch {
         dsplMessage "Error occurred while retrieving event logs: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 # TODO: Get more registry keys 
@@ -855,9 +815,6 @@ function Get-RegistrySettings {
     } catch {
         dsplMessage "Error occurred while retrieving registry settings: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-EnvironmentVariables {
@@ -877,9 +834,6 @@ function Get-EnvironmentVariables {
     } catch {
         dsplMessage "Error occurred while retrieving environment variables: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-UserSessions {
@@ -924,9 +878,6 @@ function Get-UserSessions {
     } catch {
         dsplMessage "Error occurred while retrieving user sessions: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-ProcessList {
@@ -951,9 +902,6 @@ function Get-ProcessList {
     } catch {
         dsplMessage "Error occurred while retrieving process list: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-UserRights {
@@ -1003,9 +951,6 @@ function Get-UserRights {
     } catch {
         dsplMessage "Error occurred while retrieving user rights: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-SystemCertificates {
@@ -1056,7 +1001,7 @@ function Get-SystemCertificates {
         dsplMessage "General error occurred while retrieving system certificates: $_" "error"
     }
 
-    Write-Host "============================================================================================"
+    Write-Host ""
     Write-Host ""
 }
 
@@ -1084,9 +1029,6 @@ function Get-USBDevices {
     } catch {
         dsplMessage "Error occurred while retrieving USB device information: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-Printers {
@@ -1109,9 +1051,6 @@ function Get-Printers {
     } catch {
         dsplMessage "Error occurred while retrieving printer information: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-NetworkConfiguration {
@@ -1140,9 +1079,6 @@ function Get-NetworkConfiguration {
     } catch {
         dsplMessage "Error occurred while retrieving network configuration: $_" "error"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-ActiveDirectoryInformation {
@@ -1217,10 +1153,6 @@ function Get-ActiveDirectoryInformation {
         Write-Host "    - Description: $($group.Description)"
         Write-Host "    - Members: $($group.Members -join ', ')"
     }
-    Write-Host ""
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-RemoteDesktopSessions {
@@ -1247,7 +1179,7 @@ function Get-RemoteDesktopSessions {
         }
 
         # Display end of remote desktop sessions
-        Write-Host "============================================================================================"
+        Write-Host ""
         Write-Host ""
 
     } catch {
@@ -1285,9 +1217,6 @@ function Get-LAPSInstallation {
     } else {
         dsplMessage "LAPS is not installed on this system." "info"
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-LSAProtectionStatus {
@@ -1337,9 +1266,6 @@ function Get-LSAProtectionStatus {
             Write-Output "Registry key $RegistryPath does not exist."
         }
     }
-    
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-CredentialGuardStatus {
@@ -1390,9 +1316,6 @@ function Get-CredentialGuardStatus {
             Write-Output "Registry key $RegistryPath does not exist."
         }
     }
-    
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-UACStatus {
@@ -1425,9 +1348,6 @@ function Get-UACStatus {
         0 { Write-Host "UAC: Disabled" -ForegroundColor Red }
         Default { Write-Host "The system was unable to find the specified registry value: EnableLUA" }
     }
-    Write-Host ""
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 function Get-SensitiveRegistryComponents {
@@ -1496,9 +1416,6 @@ function Get-RecentCommands {
     } else {
         Write-Host "No PowerShell session history found."
     }
-
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 ### Work In Progress
@@ -1564,8 +1481,6 @@ function Get-CommonFolderPermissions {
     } catch {
         dsplMessage "Error occurred while checking folder permissions: $_" "error"
     }
-    Write-Host "============================================================================================"
-    Write-Host ""
 }
 
 
@@ -1582,43 +1497,77 @@ function Main {
 
     # Define the array of functions to call
     $functionsToCall = @(
-        #@{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
-        #@{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
-        #@{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
-        #@{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
-        #@{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
-        #@{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
-        #@{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
-        #@{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
-        #@{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
-        #@{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
-        #@{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
-        #@{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
+        @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
+        Write-Host "============================================================================================"; Write-Host ""
         @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers } }
-        #@{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
-        #@{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
+        Write-Host "============================================================================================"; Write-Host ""
         @{ Name = "OpenPorts"; ScriptBlock = { Get-OpenPorts } }
-        #@{ Name = "Netstat"; ScriptBlock = { Get-Netstat } }
-        #@{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules } }
-        #@{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares } }
-        #@{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles } }
-        #@{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms } }
-        #@{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs } }
-        #@{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs } }
-        #@{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings } }
-        #@{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables } }
-        #@{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions } }
-        #@{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList } }
-        #@{ Name = "UserRights"; ScriptBlock = { Get-UserRights } }
-        #@{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates } }
-        #@{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices } }
-        #@{ Name = "Printers"; ScriptBlock = { Get-Printers } }
-        #@{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration } }
-        #@{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation } }
-        #@{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "Netstat"; ScriptBlock = { Get-Netstat } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "UserRights"; ScriptBlock = { Get-UserRights } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "Printers"; ScriptBlock = { Get-Printers } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation } }
+        Write-Host "============================================================================================"; Write-Host ""
+        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions } }
+        Write-Host "============================================================================================"; Write-Host ""
         @{ Name = "CommonFolderPermissions"; ScriptBlock = { Get-CommonFolderPermissions } }
+        Write-Host "============================================================================================"; Write-Host ""
 
-        
         # Add more functions here as needed
     )
 

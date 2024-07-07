@@ -28,7 +28,7 @@
     Don't be a dick. Only use this if you are legally allowed to do so.
 #>
 
-
+# Setup Params
 param (
     [string]$SaveLocation = (Get-Location).Path,
     [switch]$NoConfig,
@@ -39,7 +39,7 @@ param (
 $CONFIG_FILE_DIR = Join-Path -Path $env:USERPROFILE -ChildPath ".TheProber"
 $CONFIG_FILE = Join-Path -Path $CONFIG_FILE_DIR -ChildPath "config.cfg"
 
-function Display-AsciiBanner {
+function dsplAsciiBanner {
     Write-Host -ForegroundColor Cyan @"
 ░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓████████▓▒░      ░▒▓███████▓▒░░▒▓███████▓▒░ ░▒▓██████▓▒░░▒▓███████▓▒░░▒▓████████▓▒░▒▓███████▓▒░  
    ░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░             ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░ 
@@ -59,7 +59,7 @@ function Display-AsciiBanner {
 "@
 }
 
-function Display-Message {
+function dsplMessage {
     param (
         [string]$Message,
         [string]$Type
@@ -74,7 +74,7 @@ function Display-Message {
     }
 }
 
-function Display-Blurb {
+function dsplBlurb {
     $blurbs = @(
         "                          Enumerating services: Like snooping on your neighbor's Wi-Fi, but legal.`n",
         "                          Exploring services: The geek's way of saying 'I'm just curious!`n",
@@ -85,22 +85,22 @@ function Display-Blurb {
     Write-Host $blurbs[$randomIndex]
 }
 
-function Check-ConfigFilePresence {
+function fncConfigCheck {
     if (-not $NoConfig) {
         if (-not (Test-Path $CONFIG_FILE)) {
-            Display-Message "Configuration file not found: $CONFIG_FILE" "warning"
+            dsplMessage "Configuration file not found: $CONFIG_FILE" "warning"
             New-Item -ItemType Directory -Path $CONFIG_FILE_DIR -Force
             New-Item -ItemType File -Path $CONFIG_FILE -Force
-            Display-Message "Configuration file created: $CONFIG_FILE" "success"
+            dsplMessage "Configuration file created: $CONFIG_FILE" "success"
         } else {
-            Display-Message "Configuration file found: $CONFIG_FILE" "info"
+            dsplMessage "Configuration file found: $CONFIG_FILE" "info"
         }
     } else {
-        Display-Message "Configuration creation disabled by user." "info"
+        dsplMessage "Configuration creation disabled by user." "info"
     }
 }
 
-function Display-Version {
+function dsplVersion {
     Write-Host -ForegroundColor Cyan @"
 ==============================================
 | The Prober - Windows Enumaration Tool      |
@@ -118,24 +118,71 @@ function Display-Version {
 "@
 }
 
-function Verify-PowerShellVersion {
+function fncVerifyPSVersion {
     $psVersion = $PSVersionTable.PSVersion
-    Display-Message "Detected PowerShell Version: $psVersion" "info"
+    dsplMessage "Detected PowerShell Version: $psVersion" "info"
     if ($psVersion.Major -lt 5) {
-        Display-Message "This script requires PowerShell 5.0 or higher. Please upgrade your PowerShell version." "error"
+        dsplMessage "This script requires PowerShell 5.0 or higher. Please upgrade your PowerShell version." "error"
         exit 1
     }
 }
 
-function Check-AdminRights {
+function fncCheckIfAdmin {
     $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-### Functions that actually do stuff.
+function fncB64Enc {
+    param (
+        [string]$filePath,
+        [string]$encodedFilePath
+    )
 
+    try {
+        # Read all content of the file as bytes
+        $fileBytes = [System.IO.File]::ReadAllBytes($filePath)
+
+        # Convert bytes to Base64 string
+        $base64String = [System.Convert]::ToBase64String($fileBytes)
+
+        # Write the Base64 string to a file
+        $base64String | Out-File -FilePath $encodedFilePath -Encoding utf8
+        Write-Host "Successfully encoded $filePath to base64: $encodedFilePath"
+    } catch {
+        Write-Host "Failed to encode file to base64: $_"
+    }
+}
+
+# Function to write output to a file
+function fncWriteToFile {
+    param (
+        [string]$functionName,
+        [string]$output
+    )
+    try {
+        if ($null -eq $output -or $output -eq '') {
+            Write-Host "No output received from function $functionName. Skipping file write."
+            return
+        }
+
+        # It's a bit Broken right now...
+        #$hostName = $env:COMPUTERNAME
+        #$scriptDir = $PSScriptRoot
+        #$fileName = Join-Path -Path $scriptDir -ChildPath "$hostName-$functionName.txt"
+
+        #Write-Host "Writing output of $functionName to $fileName"
+        $output | Out-File -FilePath $fileName -Encoding utf8
+        Write-Host "Successfully wrote output of $functionName to $fileName"
+    } catch {
+        Write-Host "Failed to write output of $functionName to file. Error: $_"
+    }
+}
+
+############################################
+##### Functions that actually do stuff.#####
+############################################
 function Get-SystemInformation {
-    Display-Message "System Information" "info"
+    dsplMessage "System Information" "info"
     Write-Host "================="
 
     # Get computer name
@@ -191,7 +238,7 @@ function Get-SystemInformation {
 }
 
 function Get-AvailableDrives {
-    Display-Message "Available Drives" "info"
+    dsplMessage "Available Drives" "info"
     Write-Host "================"
 
     # Get all drives using Get-PSDrive
@@ -224,7 +271,7 @@ function Get-AvailableDrives {
 }
 
 function Get-AntivirusDetections {
-    Display-Message "Installed Antivirus Software" "info"
+    dsplMessage "Installed Antivirus Software" "info"
     Write-Host "================"
 
     # Retrieve antivirus information using WMI
@@ -254,14 +301,14 @@ function Get-AntivirusDetections {
             Write-Host ""
         }
     } else {
-        Display-Message "No antivirus products found." "info"
+        dsplMessage "No antivirus products found." "info"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-InstalledKB {
-    Display-Message "Installed KB Updates" "info"
+    dsplMessage "Installed KB Updates" "info"
     Write-Host "================="
 
     # Retrieve installed KB updates using WMI and sort by InstalledOn descending
@@ -293,14 +340,14 @@ function Get-InstalledKB {
             Write-Host ""
         }
     } else {
-        Display-Message "No installed KB updates found." "info"
+        dsplMessage "No installed KB updates found." "info"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-RunningServices {
-    Display-Message "Running Services" "info"
+    dsplMessage "Running Services" "info"
     Write-Host "================"
 
     # Retrieve running services using Get-Service cmdlet
@@ -358,14 +405,14 @@ function Get-RunningServices {
             Write-Host ""
         }
     } else {
-        Display-Message "No running services found." "info"
+        dsplMessage "No running services found." "info"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
-function Check-PasswordPolicy {
-    Display-Message "Password Policy Settings" "info"
+function Get-PasswordPolicy {
+    dsplMessage "Password Policy Settings" "info"
     Write-Host "================"
 
     try {
@@ -387,17 +434,17 @@ function Check-PasswordPolicy {
             Write-Host $minPasswordAge
             Write-Host $passwordHistory
         } else {
-            Display-Message "Unable to retrieve password policy settings." "info"
+            dsplMessage "Unable to retrieve password policy settings." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving password policy settings: $_" "error"
+        dsplMessage "Error occurred while retrieving password policy settings: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-LocalUsers {
-    Display-Message "Local User Accounts" "info"
+    dsplMessage "Local User Accounts" "info"
     Write-Host "==================="
 
     try {
@@ -413,17 +460,17 @@ function Get-LocalUsers {
                 Write-Host ""
             }
         } else {
-            Display-Message "No local user accounts found." "info"
+            dsplMessage "No local user accounts found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving local user accounts: $_" "error"
+        dsplMessage "Error occurred while retrieving local user accounts: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-LocalGroups {
-    Display-Message "Local Groups" "info"
+    dsplMessage "Local Groups" "info"
     Write-Host "============"
 
     try {
@@ -437,17 +484,17 @@ function Get-LocalGroups {
                 Write-Host ""
             }
         } else {
-            Display-Message "No local groups found." "info"
+            dsplMessage "No local groups found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving local groups: $_" "error"
+        dsplMessage "Error occurred while retrieving local groups: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-InstalledSoftware {
-    Display-Message "Installed Software" "info"
+    dsplMessage "Installed Software" "info"
     Write-Host "=================="
 
     try {
@@ -472,31 +519,31 @@ function Get-InstalledSoftware {
                 Write-Host ""
             }
         } else {
-            Display-Message "No software found." "info"
+            dsplMessage "No software found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving installed software: $_" "error"
+        dsplMessage "Error occurred while retrieving installed software: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-OpenPorts {
-    Display-Message "Open Ports" "info"
-    Display-Message "===========" "info"
+    dsplMessage "Open Ports" "info"
+    dsplMessage "===========" "info"
     try {
         # Define an array of common ports to check for Windows Server
         $ports = @(80, 443, 3389, 445, 135, 137, 139, 1433, 1521, 3306, 5985, 5986, 464, 3268, 3269, 53, 88, 389, 636)
         $tasks = @()
 
         # Function to display progress message
-        function Display-Progress {
+        function dsplProgress {
             param($message)
             Write-Host ""
-            Display-Message "$message" "info"
+            dsplMessage "$message" "info"
         }
 
-        Display-Progress "Initiating port checks..."
+        dsplProgress "Initiating port checks..."
 
         foreach ($port in $ports) {
             # Start an asynchronous task for each port check
@@ -516,43 +563,49 @@ function Get-OpenPorts {
             Write-Host "Checking port $port..."
         }
 
-        Display-Progress "Waiting for port checks to complete..."
+        dsplProgress "Waiting for port checks to complete..."
 
-        # Wait for all jobs to finish
-        $jobs = $tasks | Wait-Job
+        # Wait for all jobs to finish with a 5-second timeout
+        foreach ($job in $tasks) {
+            $job | Wait-Job -Timeout 5
+        }
 
-        Display-Progress "Port checks completed. Results:"
+        dsplProgress "Port checks completed. Results:"
 
         # Get the results of completed jobs
-        foreach ($job in $jobs) {
-            $result = Receive-Job -Job $job
-            if ($result) {
-                Write-Host "Port $($result.Port) is open"
-                Write-Host "    Remote Address: $($result.RemoteAddress)"
-                Write-Host "    Remote Port: $($result.RemotePort)"
-                Write-Host ""
+        foreach ($job in $tasks) {
+            if ($job.State -eq 'Completed') {
+                $result = Receive-Job -Job $job
+                if ($result) {
+                    Write-Host "Port $($result.Port) is open"
+                    Write-Host "    Remote Address: $($result.RemoteAddress)"
+                    Write-Host "    Remote Port: $($result.RemotePort)"
+                    Write-Host ""
+                }
+            } else {
+                Write-Host "Port check for job $($job.Id) timed out."
             }
             Remove-Job -Job $job
         }
 
-        Display-Progress "Port scanning finished."
+        dsplProgress "Port scanning finished."
     } catch {
-        Display-Message "Error occurred while checking open ports: $_" "error"
+        dsplMessage "Error occurred while checking open ports: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-Netstat {
-    Display-Message "Network Statistics (netstat equivalent)" "info"
-    Display-Message "===================================" "info"
+    dsplMessage "Network Statistics (netstat equivalent)" "info"
+    dsplMessage "===================================" "info"
 
     try {
         # Get active TCP connections
         $tcpConnections = Get-NetTCPConnection -ErrorAction Stop
 
         # Display active TCP connections
-        Display-Message "Active TCP Connections:" "info"
+        dsplMessage "Active TCP Connections:" "info"
         foreach ($conn in $tcpConnections) {
             Write-Host "Local Address: $($conn.LocalAddress):$($conn.LocalPort)"
             Write-Host "Remote Address: $($conn.RemoteAddress):$($conn.RemotePort)"
@@ -564,23 +617,23 @@ function Get-Netstat {
         $udpConnections = Get-NetUDPEndpoint -ErrorAction Stop
 
         # Display UDP endpoints
-        Display-Message "UDP Endpoints:" "info"
+        dsplMessage "UDP Endpoints:" "info"
         foreach ($udp in $udpConnections) {
             Write-Host "Local Address: $($udp.LocalAddress):$($udp.LocalPort)"
             Write-Host "Remote Address: $($udp.RemoteAddress):$($udp.RemotePort)"
             Write-Host ""
         }
 
-        Display-Message "Netstat command completed successfully." "success"
+        dsplMessage "Netstat command completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while running netstat: $_" "error"
+        dsplMessage "Error occurred while running netstat: $_" "error"
     }
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
 function Get-FirewallRules {
-    Display-Message "Firewall Rules" "info"
+    dsplMessage "Firewall Rules" "info"
     Write-Host "==============="
 
     try {
@@ -602,9 +655,9 @@ function Get-FirewallRules {
             Write-Host ""
         }
 
-        Display-Message "Firewall rules retrieval completed successfully." "success"
+        dsplMessage "Firewall rules retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving firewall rules: $_" "error"
+        dsplMessage "Error occurred while retrieving firewall rules: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -612,7 +665,7 @@ function Get-FirewallRules {
 }
 
 function Get-NetworkShares {
-    Display-Message "Network Shares" "info"
+    dsplMessage "Network Shares" "info"
     Write-Host "==============="
 
     try {
@@ -627,9 +680,9 @@ function Get-NetworkShares {
             Write-Host ""
         }
 
-        Display-Message "Network shares retrieval completed successfully." "success"
+        dsplMessage "Network shares retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving network shares: $_" "error"
+        dsplMessage "Error occurred while retrieving network shares: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -637,7 +690,7 @@ function Get-NetworkShares {
 }
 
 function Get-RecentFiles {
-    Display-Message "Recent Files" "info"
+    dsplMessage "Recent Files" "info"
     Write-Host "==============="
 
     try {
@@ -655,9 +708,9 @@ function Get-RecentFiles {
             Write-Host ""
         }
 
-        Display-Message "Recent files retrieval completed successfully." "success"
+        dsplMessage "Recent files retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving recent files: $_" "error"
+        dsplMessage "Error occurred while retrieving recent files: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -665,7 +718,7 @@ function Get-RecentFiles {
 }
 
 function Get-StartupPrograms {
-    Display-Message "Startup Programs" "info"
+    dsplMessage "Startup Programs" "info"
     Write-Host "==============="
 
     try {
@@ -683,9 +736,9 @@ function Get-StartupPrograms {
             Write-Host ""
         }
 
-        Display-Message "Startup programs retrieval completed successfully." "success"
+        dsplMessage "Startup programs retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving startup programs: $_" "error"
+        dsplMessage "Error occurred while retrieving startup programs: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -693,7 +746,7 @@ function Get-StartupPrograms {
 }
 
 function Get-SystemLogs {
-    Display-Message "System Logs" "info"
+    dsplMessage "System Logs" "info"
     Write-Host "==============="
 
     try {
@@ -714,12 +767,12 @@ function Get-SystemLogs {
             Write-Host ""
         }
 
-        Display-Message "System logs retrieval completed successfully." "success"
+        dsplMessage "System logs retrieval completed successfully." "success"
     } catch {
         if ($_.Exception.Message -like "*The system cannot find the file specified.*") {
-            Display-Message "Setup logs not found or inaccessible." "info"
+            dsplMessage "Setup logs not found or inaccessible." "info"
         } else {
-            Display-Message "Error occurred while retrieving system logs: $_" "error"
+            dsplMessage "Error occurred while retrieving system logs: $_" "error"
         }
     }
 
@@ -728,7 +781,7 @@ function Get-SystemLogs {
 }
 
 function Get-EventLogs {
-    Display-Message "Event Logs" "info"
+    dsplMessage "Event Logs" "info"
     Write-Host "==============="
 
     try {
@@ -756,18 +809,18 @@ function Get-EventLogs {
             Write-Host ""
         }
 
-        Display-Message "Event logs retrieval completed successfully." "success"
+        dsplMessage "Event logs retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving event logs: $_" "error"
+        dsplMessage "Error occurred while retrieving event logs: $_" "error"
     }
 
     Write-Host "============================================================================================"
     Write-Host ""
 }
 
-# To get more registry keys 
+# TODO: Get more registry keys 
 function Get-RegistrySettings {
-    Display-Message "Registry Settings" "info"
+    dsplMessage "Registry Settings" "info"
     Write-Host "==============="
 
     try {
@@ -785,9 +838,9 @@ function Get-RegistrySettings {
         Write-Host "System Root: $($registrySettings.SystemRoot)"
         Write-Host "BuildLab: $($registrySettings.BuildLab)"
 
-        Display-Message "Registry settings retrieval completed successfully." "success"
+        dsplMessage "Registry settings retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving registry settings: $_" "error"
+        dsplMessage "Error occurred while retrieving registry settings: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -795,7 +848,7 @@ function Get-RegistrySettings {
 }
 
 function Get-EnvironmentVariables {
-    Display-Message "Environment Variables" "info"
+    dsplMessage "Environment Variables" "info"
     Write-Host "==============="
 
     try {
@@ -807,9 +860,9 @@ function Get-EnvironmentVariables {
             Write-Host "$($envVar.Name): $($envVar.Value)"
         }
 
-        Display-Message "Environment variables retrieval completed successfully." "success"
+        dsplMessage "Environment variables retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving environment variables: $_" "error"
+        dsplMessage "Error occurred while retrieving environment variables: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -817,7 +870,7 @@ function Get-EnvironmentVariables {
 }
 
 function Get-UserSessions {
-    Display-Message "User Sessions" "info"
+    dsplMessage "User Sessions" "info"
     Write-Host "==============="
 
     try {
@@ -854,9 +907,9 @@ function Get-UserSessions {
             Write-Host ""
         }
 
-        Display-Message "User sessions retrieval completed successfully." "success"
+        dsplMessage "User sessions retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving user sessions: $_" "error"
+        dsplMessage "Error occurred while retrieving user sessions: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -864,7 +917,7 @@ function Get-UserSessions {
 }
 
 function Get-ProcessList {
-    Display-Message "Running Processes" "info"
+    dsplMessage "Running Processes" "info"
     Write-Host "==============="
 
     try {
@@ -881,9 +934,9 @@ function Get-ProcessList {
             Write-Host ""
         }
 
-        Display-Message "Process list retrieval completed successfully." "success"
+        dsplMessage "Process list retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving process list: $_" "error"
+        dsplMessage "Error occurred while retrieving process list: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -895,20 +948,20 @@ function Get-UserRights {
         [string]$UserName = $env:USERNAME
     )
 
-    Display-Message "User Rights for $UserName" "info"
+    dsplMessage "User Rights for $UserName" "info"
     Write-Host "==============="
 
     try {
         $userGroupsOutput = net user $UserName /domain 2>&1
 
         if ($userGroupsOutput -match "The user name could not be found") {
-            Display-Message "User '$UserName' not found." "error"
+            dsplMessage "User '$UserName' not found." "error"
             return
         }
 
         if ($userGroupsOutput -match "System error 1355") {
-            Display-Message "Failed to retrieve domain information." "warning"
-            Display-Message "Using local information instead." "info"
+            dsplMessage "Failed to retrieve domain information." "warning"
+            dsplMessage "Using local information instead." "info"
             $userGroupsOutput = net user $UserName 2>&1
         }
 
@@ -929,13 +982,13 @@ function Get-UserRights {
                 Write-Host "Rights: $rights"
                 Write-Host ""
             } else {
-                Display-Message "Failed to retrieve rights for group '$groupName'." "error"
+                dsplMessage "Failed to retrieve rights for group '$groupName'." "error"
             }
         }
 
-        Display-Message "User rights retrieval completed successfully." "success"
+        dsplMessage "User rights retrieval completed successfully." "success"
     } catch {
-        Display-Message "Error occurred while retrieving user rights: $_" "error"
+        dsplMessage "Error occurred while retrieving user rights: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -943,7 +996,7 @@ function Get-UserRights {
 }
 
 function Get-SystemCertificates {
-    Display-Message "System Certificates" "info"
+    dsplMessage "System Certificates" "info"
     Write-Host "====================="
 
     try {
@@ -979,15 +1032,15 @@ function Get-SystemCertificates {
 
                 $store.Close()
             } catch [System.Security.Cryptography.CryptographicException] {
-                Display-Message "Error accessing store '$storeLocation': Certificate store not found." "warning"
+                dsplMessage "Error accessing store '$storeLocation': Certificate store not found." "warning"
             } catch {
-                Display-Message "Error accessing store '$storeLocation': $_" "error"
+                dsplMessage "Error accessing store '$storeLocation': $_" "error"
             }
         }
 
-        Display-Message "System certificates retrieval completed successfully." "success"
+        dsplMessage "System certificates retrieval completed successfully." "success"
     } catch {
-        Display-Message "General error occurred while retrieving system certificates: $_" "error"
+        dsplMessage "General error occurred while retrieving system certificates: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -995,7 +1048,7 @@ function Get-SystemCertificates {
 }
 
 function Get-USBDevices {
-    Display-Message "USB Devices" "info"
+    dsplMessage "USB Devices" "info"
     Write-Host "====================="
 
     try {
@@ -1013,10 +1066,10 @@ function Get-USBDevices {
                 Write-Host "---------------------------------------------"
             }
         } else {
-            Display-Message "No USB devices found." "info"
+            dsplMessage "No USB devices found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving USB device information: $_" "error"
+        dsplMessage "Error occurred while retrieving USB device information: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -1024,7 +1077,7 @@ function Get-USBDevices {
 }
 
 function Get-Printers {
-    Display-Message "Printers" "info"
+    dsplMessage "Printers" "info"
     Write-Host "====================="
 
     try {
@@ -1038,10 +1091,10 @@ function Get-Printers {
                 Write-Host "---------------------------------------------"
             }
         } else {
-            Display-Message "No printers found." "info"
+            dsplMessage "No printers found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving printer information: $_" "error"
+        dsplMessage "Error occurred while retrieving printer information: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -1049,7 +1102,7 @@ function Get-Printers {
 }
 
 function Get-NetworkConfiguration {
-    Display-Message "Network Configuration" "info"
+    dsplMessage "Network Configuration" "info"
     Write-Host "============================="
 
     try {
@@ -1069,10 +1122,10 @@ function Get-NetworkConfiguration {
                 Write-Host ""
             }
         } else {
-            Display-Message "No network adapters found." "info"
+            dsplMessage "No network adapters found." "info"
         }
     } catch {
-        Display-Message "Error occurred while retrieving network configuration: $_" "error"
+        dsplMessage "Error occurred while retrieving network configuration: $_" "error"
     }
 
     Write-Host "============================================================================================"
@@ -1084,21 +1137,21 @@ function Get-ActiveDirectoryInformation {
     if (-not (Get-Module -Name ActiveDirectory -ListAvailable)) {
         try {
             Import-Module -Name ActiveDirectory -ErrorAction Stop
-            Display-Message "Imported Active Directory module: $_" "success"
+            dsplMessage "Imported Active Directory module: $_" "success"
         } catch {
-            Display-Message "Failed to import Active Directory module: $_" "error"
+            dsplMessage "Failed to import Active Directory module: $_" "error"
             return
         }
     }
 
     # Ensure the module is imported successfully
     if (-not (Get-Module -Name ActiveDirectory)) {
-        Display-Message "Active Directory module could not be imported." "error"
+        dsplMessage "Active Directory module could not be imported." "error"
         return
     }
 
     # Start retrieving Active Directory information
-    Display-Message "Active Directory Information" "info"
+    dsplMessage "Active Directory Information" "info"
     Write-Host "================================="
 
     # Get domain information
@@ -1165,7 +1218,7 @@ function Get-RemoteDesktopSessions {
 
     try {
         # Display header for remote desktop sessions
-        Display-Message "Remote Desktop Sessions" "info"
+        dsplMessage "Remote Desktop Sessions" "info"
         Write-Host "======================="
 
         # Query active remote desktop sessions using quser command
@@ -1185,12 +1238,12 @@ function Get-RemoteDesktopSessions {
         Write-Host ""
 
     } catch {
-        Display-Message "Error occurred: $_" "error"
+        dsplMessage "Error occurred: $_" "error"
     }
 }
 
-function Check-LAPSInstallation {
-    Display-Message "Checking if LAPS is installed..." "info"
+function Get-LAPSInstallation {
+    dsplMessage "Checking if LAPS is installed..." "info"
     Write-Host "==============="
 
     $lapsInstalled = $false
@@ -1215,9 +1268,9 @@ function Check-LAPSInstallation {
     }
 
     if ($lapsInstalled) {
-        Display-Message "LAPS is installed on this system." "success"
+        dsplMessage "LAPS is installed on this system." "success"
     } else {
-        Display-Message "LAPS is not installed on this system." "info"
+        dsplMessage "LAPS is not installed on this system." "info"
     }
 
     Write-Host "============================================================================================"
@@ -1229,7 +1282,7 @@ function Get-LSAProtectionStatus {
         [switch]$Verbose
     )
 
-    Display-Message "Checking if LSA Protection is enabled..." "info"
+    dsplMessage "Checking if LSA Protection is enabled..." "info"
     Write-Host "==============="
     # Path to the registry key
     $RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
@@ -1282,7 +1335,7 @@ function Get-CredentialGuardStatus {
     )
 
     # Display initial message
-    Display-Message "Checking if Credential Guard is enabled..." "info"
+    dsplMessage "Checking if Credential Guard is enabled..." "info"
     Write-Host "==============="
 
     # Path to the registry key
@@ -1330,7 +1383,7 @@ function Get-CredentialGuardStatus {
 }
 
 function Get-UACStatus {
-    Display-Message "Checking User Account Control (UAC) settings..." "info"
+    dsplMessage "Checking User Account Control (UAC) settings..." "info"
     Write-Host "==============="
 
     # Path to the registry key
@@ -1364,8 +1417,8 @@ function Get-UACStatus {
     Write-Host ""
 }
 
-function Check-SensitiveRegistry {
-    Display-Message "Checking for sensitive information in registry..." "info"
+function Get-SensitiveRegistryComponents {
+    dsplMessage "Checking for sensitive information in registry..." "info"
     Write-Host "==============="
 
     # List of registry paths to check
@@ -1399,7 +1452,7 @@ function Check-SensitiveRegistry {
 }
 
 function Get-RecentCommands {
-    Display-Message "Checking recently run commands..." "info"
+    dsplMessage "Checking recently run commands..." "info"
     Write-Host "==============="
 
     # Get recent commands from history
@@ -1422,7 +1475,7 @@ function Get-RecentCommands {
 
     if ($sessionHistory) {
         Write-Host ""
-        Display-Message "PowerShell session history:" "info"
+        dsplMessage "PowerShell session history:" "info"
         Write-Host "==============="
         $sessionHistory | ForEach-Object {
             Write-Host ("ID: $($_.Id) | $($PSVersionTable.PSVersion) | $($_.CommandLine)") -ForegroundColor Yellow
@@ -1436,58 +1489,19 @@ function Get-RecentCommands {
 }
 
 ### Work In Progress
-function Check-CommonFolderPermissions {
+function Get-CommonFolderPermissions {
+#TODO: If Specific Str then Highlight as possible vuln
+
 }
 
 
-
-
-
-
-# Function to write output to a file
-function Write-OutputToFile {
-    param (
-        [string]$functionName,
-        [string]$output
-    )
-
-    try {
-        $hostName = $env:COMPUTERNAME
-        $scriptDir = $PSScriptRoot
-        $fileName = Join-Path -Path $scriptDir -ChildPath "$hostName-$functionName.txt"
-        $output | Out-File -FilePath $fileName -Encoding utf8
-        Write-Host "Successfully wrote output of $functionName to $fileName"
-    } catch {
-        Write-Host "Failed to write output of $functionName to file. Error: $_"
-    }
-}
-
-# Function to encode a file to Base64
-function Encode-ToBase64 {
-    param (
-        [string]$filePath,
-        [string]$encodedFilePath
-    )
-
-    try {
-        # Read all content of the file as bytes
-        $fileBytes = [System.IO.File]::ReadAllBytes($filePath)
-
-        # Convert bytes to Base64 string
-        $base64String = [System.Convert]::ToBase64String($fileBytes)
-
-        # Write the Base64 string to a file
-        $base64String | Out-File -FilePath $encodedFilePath -Encoding utf8
-        Write-Host "Successfully encoded $filePath to base64: $encodedFilePath"
-    } catch {
-        Write-Host "Failed to encode file to base64: $_"
-    }
-}
-
+############################################################
+##### Main that makes the stuff actually do the stuff. #####
+############################################################
 # Define functions for different tasks
 function Main {
     if ($Version) {
-        Display-Version
+        dsplVersion
         exit 0
     }
 
@@ -1496,15 +1510,15 @@ function Main {
         @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation } }
         @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives } }
         @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections } }
-        @{ Name = "LAPSInstallation"; ScriptBlock = { Check-LAPSInstallation } }
+        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation } }
         @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose } }
         @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose } }
         @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus } }
-        @{ Name = "SensitiveRegistry"; ScriptBlock = { Check-SensitiveRegistry } }
+        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents } }
         @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands } }
         @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB } }
         @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices } }
-        @{ Name = "PasswordPolicy"; ScriptBlock = { Check-PasswordPolicy } }
+        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy } }
         @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers } }
         @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups } }
         @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware } }
@@ -1533,7 +1547,7 @@ function Main {
     foreach ($function in $functionsToCall) {
         try {
             $output = & $function.ScriptBlock
-            Write-OutputToFile -functionName $function.Name -output $output
+            fncWriteToFile -functionName $function.Name -output $output
         } catch {
             Write-Host "An error occurred while executing $($function.Name): $_"
         }
@@ -1543,19 +1557,19 @@ function Main {
 # Main script execution
 Start-Transcript -Path "$PSScriptRoot\script-log.txt" -Append
 try {
-    Display-AsciiBanner
-    Display-Blurb
+    dsplAsciiBanner
+    dsplBlurb
 
-    Verify-PowerShellVersion
-    Check-ConfigFilePresence
-    if (Check-AdminRights) {
-        Display-Message "Administrator privileges detected." "info"
+    fncVerifyPSVersion
+    fncConfigCheck
+    if (fncCheckIfAdmin) {
+        dsplMessage "Administrator privileges detected." "info"
     } else {
-        Display-Message "No administrator privileges detected." "info"
+        dsplMessage "No administrator privileges detected." "info"
     }
 
     $system = (Get-WmiObject Win32_OperatingSystem).Caption
-    Display-Message "Detected Operating System: $system" "info"
+    dsplMessage "Detected Operating System: $system" "info"
     Write-Host ""
 
     Main
@@ -1567,12 +1581,13 @@ try {
     # Encode the script-log.txt file to base64
     $scriptLogFilePath = Join-Path -Path $PSScriptRoot -ChildPath "script-log.txt"
     $encodedFileName = Join-Path -Path $PSScriptRoot -ChildPath "$env:COMPUTERNAME-output.b64"
-    Encode-ToBase64 -filePath $scriptLogFilePath -encodedFilePath $encodedFileName
+    fncB64Enc -filePath $scriptLogFilePath -encodedFilePath $encodedFileName
 
     # Output the base64 content to the console
     if (Test-Path $encodedFileName) {
-        $base64Content = Get-Content -Path $encodedFileName
-        Write-Output $base64Content
+        ## Disabled for the moment to stop Shell Destruction
+        #$base64Content = Get-Content -Path $encodedFileName
+        #Write-Output $base64Content
     } else {
         Write-Host "Failed to find encoded file: $encodedFileName"
     }

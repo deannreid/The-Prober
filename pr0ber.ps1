@@ -16,12 +16,12 @@
     Displays the script version information.
 
 .EXAMPLE
-    .\pr0ber.ps1 -SaveLocation "C:\Scans" -NoConfig
+    .\pr0ber.ps1 -SaveLocation "$env:SystemDrive\Scans" -NoConfig
 
-    Captures a bunch of things, saving results to "C:\Scans" without creating a configuration file.
+    Captures a bunch of things, saving results to "$env:SystemDrive\Scans" without creating a configuration file.
 
 .NOTES
-    Script Version: 0.4
+    Script Version: 0.5
     Created by Dean with a touch of care.
     For more details, visit: https://github.com/deannreid/The-Prober
 
@@ -105,7 +105,7 @@ function dsplVersion {
     Write-Host -ForegroundColor Cyan @"
 ==============================================
 | The Prober - Windows Enumaration Tool      |
-| Version: 0.4                               |
+| Version: 0.5                               |
 |                                            |
 | Created by Dean with a touch of care       |
 ==============================================
@@ -114,6 +114,9 @@ function dsplVersion {
 |                                            |
 ==============================================
 | Change Log:                                |
+| 06/07/2024: Initial Code Build             |
+| 07/07/2024: Added Hotfix Checks            |
+|             Added Password Enum            |
 | 06/07/2024: Initial Code Build             |
 ==============================================
 "@
@@ -162,7 +165,7 @@ function fncWriteToFile {
     )
     try {
         if ($null -eq $output -or $output -eq '') {
-            Write-Host "No output received from function $functionName. Skipping file write."
+            #Write-Host "No output received from function $functionName. Skipping file write."
             return
         }
 
@@ -186,54 +189,44 @@ function Get-SystemInformation {
     dsplMessage "System Information" "info"
     Write-Host "================="
 
-    # Get computer name
-    $computerName = $env:COMPUTERNAME
-    dsplMessage "Computer Name: $computerName" "info"
+    try {
+        # Attempt to get system information using WMI
+        $operatingSystem = (Get-WmiObject Win32_OperatingSystem).Caption
+        $architecture = (Get-WmiObject Win32_ComputerSystem).SystemType
+        $currentUser = $env:USERNAME
+        $lastBootTime = (Get-WmiObject Win32_OperatingSystem).LastBootUpTime
+        $lastBootTime = [Management.ManagementDateTimeConverter]::ToDateTime($lastBootTime)
+        $uptime = (Get-Date) - (Get-WmiObject Win32_OperatingSystem).ConvertToDateTime((Get-WmiObject Win32_OperatingSystem).LastBootUpTime)
+        $bios = Get-WmiObject Win32_BIOS
+        $totalMemoryGB = [math]::Round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+        $processor = Get-WmiObject Win32_Processor
+        $systemDrive = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
 
-    # Get operating system details
-    $operatingSystem = (Get-WmiObject Win32_OperatingSystem).Caption
-    dsplMessage "Operating System: $operatingSystem" "warning"
+        # Display system information retrieved from WMI
+        dsplMessage "Operating System: $operatingSystem" "warning"
+        dsplMessage "System Architecture: $architecture" "info"
+        dsplMessage "Current User: $currentUser" "info"
+        dsplMessage "Last Boot Time: $lastBootTime" "info"
+        dsplMessage "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes" "info"
+        dsplMessage "BIOS Version: $($bios.SMBIOSBIOSVersion)" "info"
+        dsplMessage "Manufacturer: $($bios.Manufacturer)" "info"
+        dsplMessage "Release Date: $($bios.ConvertToDateTime($bios.ReleaseDate))" "info"
+        dsplMessage "Total Physical Memory: $totalMemoryGB GB" "info"
+        dsplMessage "Processor: $($processor.Name)" "info"
+        dsplMessage "Number of Cores: $($processor.NumberOfCores)" "info"
+        dsplMessage "Max Clock Speed: $($processor.MaxClockSpeed) MHz" "info"
+        dsplMessage "System Drive ($env:SystemDrive) Size: $([math]::Round($systemDrive.Size / 1GB, 2)) GB" "info"
+        dsplMessage "System Drive ($env:SystemDrive) Free Space: $([math]::Round($systemDrive.FreeSpace / 1GB, 2)) GB" "info"
 
-    # Get system architecture
-    $architecture = (Get-WmiObject Win32_ComputerSystem).SystemType
-    dsplMessage "System Architecture: $architecture" "info"
+    } catch {
+        dsplMessage "Failed to retrieve system information using WMI. Using systeminfo.exe." "warning"
+        
+        # Use systeminfo.exe command to get system information
+        $systeminfoOutput = Invoke-Expression "systeminfo.exe"
 
-    # Get current logged-on user
-    $currentUser = $env:USERNAME
-    dsplMessage "Current User: $currentUser" "info"
-
-    # Get last boot time
-    $lastBootTime = (Get-WmiObject Win32_OperatingSystem).LastBootUpTime
-    $lastBootTime = [Management.ManagementDateTimeConverter]::ToDateTime($lastBootTime)
-    dsplMessage "Last Boot Time: $lastBootTime" "info"
-
-    # Get uptime
-    $uptime = (Get-Date) - (Get-WmiObject Win32_OperatingSystem).ConvertToDateTime((Get-WmiObject Win32_OperatingSystem).LastBootUpTime)
-    dsplMessage "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes" "info"
-
-    # Get BIOS information
-    $bios = Get-WmiObject Win32_BIOS
-    dsplMessage "BIOS Version: $($bios.SMBIOSBIOSVersion)" "info"
-    dsplMessage "Manufacturer: $($bios.Manufacturer)" "info"
-    dsplMessage "Release Date: $($bios.ConvertToDateTime($bios.ReleaseDate))" "info"
-
-    # Get physical memory (RAM)
-    $memory = Get-WmiObject Win32_ComputerSystem
-    $totalMemoryGB = [math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
-    dsplMessage "Total Physical Memory: $totalMemoryGB GB" "info"
-
-    # Get processor information
-    $processor = Get-WmiObject Win32_Processor
-    dsplMessage "Processor: $($processor.Name)" "info"
-    dsplMessage "Number of Cores: $($processor.NumberOfCores)" "info"
-    dsplMessage "Max Clock Speed: $($processor.MaxClockSpeed) MHz" "info"
-
-    # Get system drive information
-    $systemDrive = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
-    $systemDriveSizeGB = [math]::Round($systemDrive.Size / 1GB, 2)
-    $systemDriveFreeSpaceGB = [math]::Round($systemDrive.FreeSpace / 1GB, 2)
-    dsplMessage "System Drive (C:) Size: $systemDriveSizeGB GB" "info"
-    dsplMessage "System Drive (C:) Free Space: $systemDriveFreeSpaceGB GB" "info"
+        # Display system information from systeminfo.exe output
+        dsplMessage $systeminfoOutput "info"
+    }
 }
 
 function Get-AvailableDrives {
@@ -279,6 +272,7 @@ function Get-AntivirusDetections {
             Write-Host "Name: $($product.displayName)"
             Write-Host "Path: $($product.pathToSignedProductExe)"
             Write-Host "State: $($product.productState)"
+            
             
             # Vendor Information
             if ($product.vendor) {
@@ -405,7 +399,6 @@ function Get-RunningServices {
 function Get-PasswordPolicy {
     dsplMessage "Password Policy Settings" "info"
     Write-Host "================"
-
     try {
         # Execute net accounts command to retrieve password policy settings
         $netAccounts = & net accounts
@@ -473,6 +466,7 @@ function Get-LocalGroups {
                 Write-Host "Group Name: $($group.Name)"
                 Write-Host "SID: $($group.SID)"
                 Write-Host "Description: $($group.Description)"
+                Write-Host ""
                 Write-Host ""
             }
         } else {
@@ -628,10 +622,10 @@ function Get-FirewallRules {
     Write-Host "==============="
 
     try {
-        # Attempt to get firewall rules
+        # Attempt to get firewall rules using Get-NetFirewallRule
         $rules = Get-NetFirewallRule -ErrorAction Stop
 
-        # Display firewall rules
+        # Display firewall rules using Get-NetFirewallRule formatting
         foreach ($rule in $rules) {
             Write-Host "Name: $($rule.DisplayName)"
             Write-Host "Enabled: $($rule.Enabled)"
@@ -646,9 +640,33 @@ function Get-FirewallRules {
             Write-Host ""
         }
 
-        dsplMessage "Firewall rules retrieval completed successfully." "success"
+        dsplMessage "Firewall rules retrieved successfully using Get-NetFirewallRule." "success"
     } catch {
-        dsplMessage "Error occurred while retrieving firewall rules: $_" "error"
+        dsplMessage "Error occurred while retrieving firewall rules using Get-NetFirewallRule: $_" "error"
+
+        dsplMessage "Attempting to retrieve firewall rules using netsh commands..." "warning"
+
+        try {
+            # Retrieve specific firewall rule using netsh
+            $ruleName = "allow browser"
+            $firewallRuleVerbose = & netsh advfirewall firewall show rule name="$ruleName" verbose
+
+            # Display specific firewall rule verbose output
+            dsplMessage "Firewall Rule (Verbose): $ruleName" "info"
+            Write-Host $firewallRuleVerbose
+            Write-Host ""
+
+            # Retrieve dynamic inbound rules using netsh
+            $firewallDynamicInbound = & netsh advfirewall firewall show rule name=all dir=in type=dynamic
+
+            # Display dynamic inbound firewall rules
+            dsplMessage "Dynamic Inbound Firewall Rules:" "info"
+            #Write-Host $firewallDynamicInbound    #### Disabled due to spaaaam until I can clean up output
+
+            dsplMessage "Firewall rules retrieved successfully using netsh commands." "success"
+        } catch {
+            dsplMessage "Error occurred while retrieving firewall rules using netsh commands: $_" "error"
+        }
     }
 }
 
@@ -913,6 +931,7 @@ function Get-UserRights {
     Write-Host "==============="
 
     try {
+        # Attempt to retrieve domain user group information
         $userGroupsOutput = net user $UserName /domain 2>&1
 
         if ($userGroupsOutput -match "The user name could not be found") {
@@ -924,6 +943,11 @@ function Get-UserRights {
             dsplMessage "Failed to retrieve domain information." "warning"
             dsplMessage "Using local information instead." "info"
             $userGroupsOutput = net user $UserName 2>&1
+        }
+
+        # Check if $userGroupsOutput is null or empty after domain handling
+        if (-not $userGroupsOutput) {
+            throw "Failed to retrieve user group information. Output is null or empty."
         }
 
         # Extract group names from net user output
@@ -939,6 +963,7 @@ function Get-UserRights {
                 # Extract rights from net localgroup output
                 $rights = ($groupRightsOutput -split "`n" | Select-String "Members")[0] -replace "Members", "" -replace "^\s+"
 
+                # Output formatted as desired
                 Write-Host "Group: $groupName"
                 Write-Host "Rights: $rights"
                 Write-Host ""
@@ -948,8 +973,15 @@ function Get-UserRights {
         }
 
         dsplMessage "User rights retrieval completed successfully." "success"
+    } catch [System.Management.Automation.MethodInvocationException] {
+        dsplMessage "Error: Failed to invoke a method on a null-valued expression. Ensure the user exists and try again." "error"
     } catch {
-        dsplMessage "Error occurred while retrieving user rights: $_" "error"
+        # Check if the error message matches "This command can be used only on a Windows Domain Controller"
+        if ($_.Exception.Message -match "This command can be used only on a Windows Domain Controller") {
+            dsplMessage "Error: This command can be used only on a Windows Domain Controller." "error"
+        } else {
+            dsplMessage "Error occurred while retrieving user rights: $_" "error"
+        }
     }
 }
 
@@ -1003,32 +1035,6 @@ function Get-SystemCertificates {
 
     Write-Host ""
     Write-Host ""
-}
-
-function Get-USBDevices {
-    dsplMessage "USB Devices" "info"
-    Write-Host "====================="
-
-    try {
-        $usbControllers = Get-WmiObject Win32_USBControllerDevice | ForEach-Object {
-            [PSCustomObject]@{
-                DeviceID = $_.Dependent.Split("=")[1].Trim('"').Replace("\\", "\")
-                USBDevice = (Get-WmiObject -Query "ASSOCIATORS OF {$_.__PATH} WHERE ResultClass = Win32_PnPEntity").Name
-            }
-        }
-
-        if ($usbControllers) {
-            foreach ($device in $usbControllers) {
-                Write-Host "Device ID: $($device.DeviceID)"
-                Write-Host "Name: $($device.USBDevice)"
-                Write-Host "---------------------------------------------"
-            }
-        } else {
-            dsplMessage "No USB devices found." "info"
-        }
-    } catch {
-        dsplMessage "Error occurred while retrieving USB device information: $_" "error"
-    }
 }
 
 function Get-Printers {
@@ -1191,7 +1197,8 @@ function Get-LAPSInstallation {
     dsplMessage "Checking if LAPS is installed..." "info"
     Write-Host "==============="
 
-    $lapsInstalled = $false
+    $lapsInstalledKeyFound = $false
+    $lapsInstalledDirFound = $false
 
     # Define registry paths to check for LAPS installation
     $registryPaths = @(
@@ -1199,11 +1206,17 @@ function Get-LAPSInstallation {
         "HKLM:\Software\Microsoft\Windows\CurrentVersion\Group Policy\History"
     )
 
+    # Define file directories to check for LAPS installation
+    $fileDirectories = @(
+        "$env:SystemDrive\Program Files\LAPS",
+        "$env:SystemDrive\Program Files (x86)\LAPS"
+    )
+
     # Check each registry path
     foreach ($path in $registryPaths) {
         try {
             if (Test-Path -Path $path) {
-                $lapsInstalled = $true
+                $lapsInstalledKeyFound = $true
                 Write-Host "LAPS registry path found: $path"
             }
         } catch {
@@ -1212,7 +1225,25 @@ function Get-LAPSInstallation {
         }
     }
 
-    if ($lapsInstalled) {
+    # Check each file directory
+    foreach ($directory in $fileDirectories) {
+        try {
+            if (Test-Path -Path $directory -PathType Container) {
+                $lapsInstalledDirFound = $true
+                Write-Host "LAPS directory found: $directory"
+            }
+        } catch {
+            Write-Host "{!} Error occurred while checking directory: $directory"
+            Write-Host $_.Exception.Message
+        }
+    }
+
+    if ($lapsInstalledKeyFound) {
+        dsplMessage "LAPS Registry Key found." "success"
+    } else {
+        dsplMessage "LAPS is not configured." "info"
+    }
+    if ($lapsInstalledDirFound) {
         dsplMessage "LAPS is installed on this system." "success"
     } else {
         dsplMessage "LAPS is not installed on this system." "info"
@@ -1248,17 +1279,16 @@ function Get-LSAProtectionStatus {
 
     # Switch statement to provide detailed output
     switch ($RunAsPPL) {
-        2 { Write-Host "RunAsPPL: 2. Enabled without UEFI Lock" }
-        1 { Write-Host "RunAsPPL: 1. Enabled with UEFI Lock" }
-        0 { Write-Host "RunAsPPL: 0. LSA Protection Disabled. Try mimikatz." -ForegroundColor Red }
-        Default { Write-Host "The system was unable to find the specified registry value: RunAsPPL / RunAsPPLBoot" }
+        2 { dsplMessage "RunAsPPL: 2. Enabled without UEFI Lock" "warning" }
+        1 { dsplMessage "RunAsPPL: 1. Enabled with UEFI Lock" "success" }
+        0 { dsplMessage "RunAsPPL: 0. LSA Protection Disabled." "disabled" }
+        Default { dsplMessage "The system was unable to find the specified registry value: RunAsPPL / RunAsPPLBoot" "warning" }
     }
-
     if ($Verbose) {
         if ($keyExists) {
             Write-Output "Registry key $RegistryPath exists."
             if ($RunAsPPL -ne -1) {
-                Write-Output "Registry value $RegistryValue is set to $RunAsPPL."
+                Write-Host "    Registry value $RegistryValue is set to $RunAsPPL." -ForegroundColor Green -NoNewline;  dsplMessage "    LSA Protection is set to $RunAsPPL : " "error"
             } else {
                 Write-Output "Registry value $RegistryValue is not set."
             }
@@ -1299,9 +1329,9 @@ function Get-CredentialGuardStatus {
 
     # Switch statement to provide detailed output
     switch ($VBS) {
-        1 { Write-Host "Credential Guard: Enabled" -ForegroundColor Green }
-        0 { Write-Host "Credential Guard: Disabled" -ForegroundColor Red }
-        Default { Write-Host "The system was unable to find the specified registry value: EnableVirtualizationBasedSecurity" }
+        1 { dsplMessage "Credential Guard: Enabled" "enabled" }
+        0 { dsplMessage "Credential Guard: Disabled." "disabled" }
+        Default { dsplMessage "The system was unable to find the specified registry value: EnableVirtualizationBasedSecurity" "warning" }
     }
 
     if ($Verbose) {
@@ -1344,9 +1374,9 @@ function Get-UACStatus {
 
     # Switch statement to provide detailed output
     switch ($EnableLUA) {
-        1 { Write-Host "UAC: Enabled" -ForegroundColor Green }
-        0 { Write-Host "UAC: Disabled" -ForegroundColor Red }
-        Default { Write-Host "The system was unable to find the specified registry value: EnableLUA" }
+        1 { dsplMessage "UA$env:SystemDrive Enabled" "enabled" }
+        0 { dsplMessage "UA$env:SystemDrive Disabled." "disabled" }
+        Default { dsplMessage "UA$env:SystemDrive Registry not found." "warning" }
     }
 }
 
@@ -1422,21 +1452,62 @@ function Get-RecentCommands {
 function Get-CommonFolderPermissions {
     dsplMessage "Folder Permissions" "info"
     dsplMessage "==================" "info"
-
     try {
         # Define an array of common folder paths to check
         $folders = @(
-            "C:\Windows",
-            "C:\Program Files",
-            "C:\Program Files (x86)",
-            "C:\Users",
-            "C:\Users\Public",
-            "C:\Temp",
-            "C:\Windows\Temp",
-            "C:\System Volume Information",
-            "C:\ProgramData",
-            "C:\Users\Deann\Desktop\NoNameEnumScript"
+            "$env:SystemDrive\Users",                                  # User profiles
+            "$env:SystemDrive\Users\Public",                           # Public user profile
+            "$env:SystemDrive\Temp",                                   # Temporary files
+            "$env:SystemDrive\Windows\Temp",                           # Windows temporary files
+            "$env:SystemDrive\Documents and Settings\All Users\Start Menu\Programs\Startup",    # Startup folder for all users (legacy)
+            "$env:SystemDrive\Documents and Settings\$env:Username\Start Menu\Programs\Startup", # Startup folder for current user (legacy)
+            "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup",     # Startup folder for all users (modern)
+            "$env:Appdata\Microsoft\Windows\Start Menu\Programs\Startup",         # Startup folder for current user (modern)
+            "$env:SystemDrive\Windows\System32\drivers\etc\",          # Hosts file and network configuration
+            "$env:SystemDrive\Windows\System32\inetsrv",               # IIS (Internet Information Services) config and logs
+            "$env:SystemDrive\inetpub",                                # IIS web root folder
+            "$env:SystemDrive\Program Files\Apache Software Foundation",   # Apache HTTP Server
+            "$env:SystemDrive\Program Files (x86)\Apache Software Foundation",
+            "$env:SystemDrive\Program Files\MySQL",                    # MySQL database
+            "$env:SystemDrive\Program Files (x86)\MySQL",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server",     # Microsoft SQL Server
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server Compact Edition",   # SQL Server Compact Edition
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server Compact Edition",
+            "$env:SystemDrive\Program Files\PostgreSQL",               # PostgreSQL database
+            "$env:SystemDrive\Program Files (x86)\PostgreSQL",
+            "$env:SystemDrive\Program Files\Oracle",                   # Oracle database
+            "$env:SystemDrive\Program Files (x86)\Oracle",
+            "$env:SystemDrive\Program Files\IBM",                      # IBM DB2 database
+            "$env:SystemDrive\Program Files (x86)\IBM",
+            "$env:SystemDrive\Program Files\Git",                      # Git version control
+            "$env:SystemDrive\Program Files (x86)\Git",
+            "$env:SystemDrive\Program Files\Docker",                   # Docker containers
+            "$env:SystemDrive\Program Files (x86)\Docker",
+            "$env:SystemDrive\Program Files\Microsoft Office",         # Microsoft Office applications
+            "$env:SystemDrive\Program Files (x86)\Microsoft Office",
+            "$env:SystemDrive\Program Files\Microsoft Exchange Server",# Microsoft Exchange Server
+            "$env:SystemDrive\Program Files (x86)\Microsoft Exchange Server",
+            #"$env:SystemDrive\Program Files\Microsoft SQL Server Management Studio 18",   # SQL Server Management Studio
+            #"$env:SystemDrive\Program Files (x86)\Microsoft SQL Server Management Studio 18",
+            #"$env:SystemDrive\Program Files\Microsoft SQL Server Management Studio 17",
+            #"$env:SystemDrive\Program Files (x86)\Microsoft SQL Server Management Studio 17",
+            #"$env:SystemDrive\Program Files\Microsoft SQL Server Management Studio 16",
+            #"$env:SystemDrive\Program Files (x86)\Microsoft SQL Server Management Studio 16",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server\150",   # SQL Server 2019 folders
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server\150",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server\140",   # SQL Server 2017 folders
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server\140",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server\130",   # SQL Server 2016 folders
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server\130",
+            "$env:SystemDrive\Program Files\Microsoft SQL Server\120",   # SQL Server 2014 folders
+            "$env:SystemDrive\Program Files (x86)\Microsoft SQL Server\120",
+            "$env:SystemDrive\Program Files\Microsoft Configuration Manager",   # Microsoft Configuration Manager (SCCM)
+            "$env:SystemDrive\Program Files (x86)\Microsoft Configuration Manager"
         )
+
+        # Define an array to collect file checks for deferred processing
+        $fileChecks = @()
 
         # Get the current user
         $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -1448,10 +1519,12 @@ function Get-CommonFolderPermissions {
                     $owner = $acl.Owner
                     $accessRules = $acl.Access | Where-Object { $_.IdentityReference -eq $currentUser }
 
-                    # Check permissions for the current user
+                    # Initialize permission flags
                     $hasRead = $false
                     $hasWrite = $false
                     $hasExecute = $false
+
+                    # Check permissions for the current user
                     foreach ($rule in $accessRules) {
                         if ($rule.AccessControlType -eq "Allow") {
                             if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Read) { $hasRead = $true }
@@ -1459,31 +1532,837 @@ function Get-CommonFolderPermissions {
                             if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile) { $hasExecute = $true }
                         }
                     }
-                    
+
                     # Display the folder permissions
-                    Write-Host "Folder: $folder"
-                    Write-Host "  Owner: $owner"
-                    Write-Host "  Current User: $currentUser"
-                    Write-Host "  Permissions:"
+                    dsplMessage "Folder: $folder" "info"
+                    dsplMessage "  Owner: $owner" "info"
+                    dsplMessage "  Current User: $currentUser" "info"
+                    dsplMessage "  Permissions:" "info"
+
                     if ($hasRead) { dsplMessage "    Read: Yes" "info" } else { dsplMessage "    Read: No" "disabled" }
                     if ($hasWrite) { Write-Host "        Write: Yes       " -ForegroundColor Green -NoNewline;  dsplMessage "    This folder has write permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
                     if ($hasExecute) { Write-Host "        Execute: Yes     " -ForegroundColor Green -NoNewline;  dsplMessage "    This folder has execute permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
                     Write-Host ""
+
+                    # Add folder's files to the deferred file checks
+                    $filesToCheck = Get-ChildItem -Path $folder -File -ErrorAction SilentlyContinue
+                    foreach ($file in $filesToCheck) {
+                        $fileChecks += @{
+                            Folder = $folder
+                            File = $file.FullName
+                        }
+                    }
+
+                    Write-Host ""
                 } else {
-                    Write-Host "Folder: $folder"
-                    Write-Host "  Status: Does not exist"
+                    dsplMessage "Folder: $folder" "info"
+                    dsplMessage "  Status: Does not exist" "info"
                     Write-Host ""
                 }
             } catch {
-                Write-Host "Error occurred while checking permissions for folder: $folder. Error: $_" -ForegroundColor Red
+                dsplMessage "Error occurred while checking permissions for folder: $folder. Error: $_" "error"
             }
         }
+
+        Write-Host ""
+        dsplMessage "File Permissions" "info"
+        dsplMessage "==================" "info"
+        foreach ($fileCheck in $fileChecks) {
+            $folder = $fileCheck.Folder
+            $file = $fileCheck.File
+
+            try {
+                if (Test-Path -Path $file) {
+                    $fileOwner = (Get-Acl -Path $file).Owner
+                    $fileAccessRules = (Get-Acl -Path $file).Access | Where-Object { $_.IdentityReference -eq $currentUser }
+
+                    # Initialize permission flags for the file
+                    $fileHasRead = $false
+                    $fileHasWrite = $false
+                    $fileHasExecute = $false
+
+                    # Check permissions for the current user on the file
+                    foreach ($rule in $fileAccessRules) {
+                        if ($rule.AccessControlType -eq "Allow") {
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Read) { $fileHasRead = $true }
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Write) { $fileHasWrite = $true }
+                            if ($rule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile) { $fileHasExecute = $true }
+                        }
+                    }
+
+                    # Display file permissions
+                    dsplMessage "File: $file" "info"
+                    dsplMessage "  Owner: $fileOwner" "info"
+                    dsplMessage "  Current User: $currentUser" "info"
+                    dsplMessage "  Permissions:" "info"
+                    if ($fileHasRead) { Write-Host "        Read: Yes        " -ForegroundColor Green -NoNewline;  dsplMessage "    This file has read permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
+                    if ($fileHasWrite) { Write-Host "        Write: Yes       " -ForegroundColor Green -NoNewline;  dsplMessage "    This file has write permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
+                    if ($fileHasExecute) { Write-Host "        Execute: Yes     " -ForegroundColor Green -NoNewline;  dsplMessage "    This file has execute permissions worth a look" "error" } else { dsplMessage "    Read: No" "disabled" }
+                    Write-Host ""
+                    Start-Sleep(0.5)
+                } else {
+                    dsplMessage "File: $file" "info"
+                    dsplMessage "  Status: Does not exist" "info"
+                    Write-Host ""
+                }
+            } catch {
+                dsplMessage "Error occurred while checking permissions for file: $file. Error: $_" "error"
+            }
+        }
+
     } catch {
-        dsplMessage "Error occurred while checking folder permissions: $_" "error"
+        dsplMessage "Error occurred while checking folder and file permissions: $_" "error"
     }
 }
 
+function Get-Sharphound { 
+    dsplMessage "SharpHound Download and Execution" "info"
+    
+    # Ask the user if they want to proceed
+    $userResponse = Read-Host "Do you want to download and execute SharpHound? (y/n)"
+    
+    if ($userResponse -eq "y") {
+        dsplMessage "Proceeding with SharpHound download and execution." "info"
+        
+        try {
+            # Define the URL for the latest SharpHound release
+            $url = "https://github.com/BloodHoundAD/SharpHound/releases/latest/download/SharpHound.zip"
+            $zipPath = "$PSScriptRoot\SharpHound.zip"
+            $extractPath = "$PSScriptRoot\SharpHound"
+            
+            if (-Not (Test-Path -Path $extractPath)) {
+                New-Item -ItemType Directory -Path $extractPath
+            }
 
+            dsplMessage "Downloading SharpHound from GitHub..." "info"
+            
+            # Start the download job
+            $job = Start-Job -ScriptBlock {
+                param($url, $zipPath)
+                try {
+                    Invoke-WebRequest -Uri $url -OutFile $zipPath -ErrorAction Stop
+                } catch {
+                    $_.Exception.Message
+                }
+            } -ArgumentList $url, $zipPath
+            
+            # Wait for the job to complete with a timeout
+            $jobResult = Wait-Job -Job $job -Timeout 5
+
+            if ($jobResult -eq $null) {
+                # Job timed out
+                dsplMessage "The internet connection may be blocked. Do you want to provide a local web URL for SharpHound? (y/n)" "info"
+                $localResponse = Read-Host
+                if ($localResponse -eq "y") {
+                    $localUrl = Read-Host "Please provide the local web URL to SharpHound.zip"
+                    try {
+                        Invoke-WebRequest -Uri $localUrl -OutFile $zipPath -ErrorAction Stop
+                    } catch {
+                        dsplMessage "Failed to download from the provided local web URL." "error"
+                        return
+                    }
+                } else {
+                    dsplMessage "User opted not to provide a local web URL. Exiting." "info"
+                    return
+                }
+            } else {
+                # Job completed successfully
+                $output = Receive-Job -Job $job
+                if ($output -match "Not Found") {
+                    dsplMessage "The specified URL was not found or the server is blocking external web access. Do you want to provide a local web URL for SharpHound? (y/n)" "info"
+                    $localResponse = Read-Host
+                    if ($localResponse -eq "y") {
+                        $localUrl = Read-Host "Please provide the local web URL to SharpHound.zip"
+                        try {
+                            Invoke-WebRequest -Uri $localUrl -OutFile $zipPath -ErrorAction Stop
+                        } catch {
+                            dsplMessage "Failed to download from the provided local web URL." "error"
+                            return
+                        }
+                    } else {
+                        dsplMessage "User opted not to provide a local web URL. Exiting." "info"
+                        return
+                    }
+                }
+            }
+            
+            dsplMessage "Extracting SharpHound..." "info"
+            Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+            $sharpHoundExe = "$extractPath\SharpHound.exe"
+            
+            if (Test-Path -Path $sharpHoundExe) {
+                dsplMessage "SharpHound downloaded and extracted successfully." "info"
+                
+                $job = Start-Job -ScriptBlock {
+                    param($sharpHoundPath)
+                    
+                    dsplMessage "Starting SharpHound execution..." "info"
+                    
+                    try {
+                        & $sharpHoundPath -c All
+                    } catch {
+                        dsplMessage "Error occurred while executing SharpHound: $_" "error"
+                    }
+                    
+                    dsplMessage "SharpHound execution completed." "info"
+                } -ArgumentList $sharpHoundExe
+                
+                dsplMessage "SharpHound is running in the background. Job ID: $($job.Id)" "info"
+            } else {
+                dsplMessage "SharpHound executable not found after extraction." "error"
+            }
+        } catch {
+            dsplMessage "Error occurred during SharpHound download and execution: $_" "error"
+        }
+    } else {
+        dsplMessage "User opted not to proceed with SharpHound download and execution." "info"
+    }
+}
+
+function Get-PossibleRCELPE {
+    dsplMessage "Checking for any possible RCE or LPE vulnerabilities" "info"
+    dsplMessage "==================" "info"
+    dsplMessage "Please Note! some of the following may be False Positives - Check which OS it affects first." "info"
+    Start-Sleep (1)
+
+    # MS11-080 (KB2592799)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB2592799" }
+    if ($hotfix) {
+        dsplMessage "       MS11-080 (HF: KB2592799) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS11-080 (HF: KB2592799) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: afd.sys - Local privilege Escalation" "info"
+    }
+
+    # MS16-032 (KB3143141)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB3143141" }
+    if ($hotfix) {
+        dsplMessage "       MS16-032 (HF: KB3143141) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS16-032 (HF: KB3143141) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: Secondary Logon - Local privilege Escalation" "info"
+    }
+
+    # MS11-011 (KB2393802)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB2393802" }
+    if ($hotfix) {
+        dsplMessage "       MS11-011 (HF: KB2393802) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS11-011 (HF: KB2393802) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: WmiTraceMessageVa - Local privilege Escalation" "info"
+    }
+
+    # MS10-059 (KB982799)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB982799" }
+    if ($hotfix) {
+        dsplMessage "       MS10-059 (HF: KB982799) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS10-059 (HF: KB982799) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: All supported Windows versions" "info"
+        dsplMessage "           Affected Module: Chimichurri - Local privilege Escalation" "info"
+    }
+
+    # MS10-021 (KB979683)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB979683" }
+    if ($hotfix) {
+        dsplMessage "       MS10-021 (HF: KB979683) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS10-021 (HF: KB979683) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003" "info"
+        dsplMessage "           Affected Module: Windows Kernel - Local privilege Escalation" "info"
+    }
+
+    # MS10-092 (KB2305420)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB2305420" }
+    if ($hotfix) {
+        dsplMessage "       MS10-092 (HF: KB2305420) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS10-092 (HF: KB2305420) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2008" "info"
+        dsplMessage "           Affected Module: Task Scheduler - Local privilege Escalation" "info"
+    }
+
+    # MS10-073 (KB981957)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB981957" }
+    if ($hotfix) {
+        dsplMessage "       MS10-073 (HF: KB981957) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS10-073 (HF: KB981957) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows 7" "info"
+        dsplMessage "           Affected Module: Keyboard Layout - Local privilege Escalation" "info"
+    }
+
+    # MS17-017 (KB4013081)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4013081" }
+    if ($hotfix) {
+        dsplMessage "       MS17-017 (HF: KB4013081) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS17-017 (HF: KB4013081) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2008, Windows 7, Windows Server 2012" "info"
+        dsplMessage "           Affected Module: Registry Hive Loading - Local privilege Escalation" "info"
+    }
+
+    # MS10-015 (KB977165)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB977165" }
+    if ($hotfix) {
+        dsplMessage "       MS10-015 (HF: KB977165) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS10-015 (HF: KB977165) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: All supported Windows versions" "info"
+        dsplMessage "           Affected Module: User Mode to Ring - Local privilege Escalation" "info"
+    }
+
+    # MS08-025 (KB941693)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB941693" }
+    if ($hotfix) {
+        dsplMessage "       MS08-025 (HF: KB941693) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS08-025 (HF: KB941693) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003" "info"
+        dsplMessage "           Affected Module: win32k.sys - Local privilege Escalation" "info"
+    }
+
+    # MS06-049 (KB920958)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB920958" }
+    if ($hotfix) {
+        dsplMessage "       MS06-049 (HF: KB920958) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS06-049 (HF: KB920958) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2003, Windows XP" "info"
+        dsplMessage "           Affected Module: ZwQuerySysInfo - Local privilege Escalation" "info"
+    }
+
+    # MS06-030 (KB914389)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB914389" }
+    if ($hotfix) {
+        dsplMessage "       MS06-030 (HF: KB914389) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS06-030 (HF: KB914389) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003" "info"
+        dsplMessage "           Affected Module: Mrxsmb.sys - Local privilege Escalation" "info"
+    }
+
+    # MS05-055 (KB908523)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB908523" }
+    if ($hotfix) {
+        dsplMessage "       MS05-055 (HF: KB908523) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS05-055 (HF: KB908523) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003" "info"
+        dsplMessage "           Affected Module: APC Data-Free - Local privilege Escalation" "info"
+    }
+
+    # MS05-018 (KB890859)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB890859" }
+    if ($hotfix) {
+        dsplMessage "       MS05-018 (HF: KB890859) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS05-018 (HF: KB890859) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003" "info"
+        dsplMessage "           Affected Module: CSRSS - Local privilege Escalation" "info"
+    }
+
+    # MS04-019 (KB842526)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB842526" }
+    if ($hotfix) {
+        dsplMessage "       MS04-019 (HF: KB842526) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS04-019 (HF: KB842526) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003, Windows 2000" "info"
+        dsplMessage "           Affected Module: Utility Manager - Local privilege Escalation" "info"
+    }
+
+    # MS04-011 (KB835732)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB835732" }
+    if ($hotfix) {
+        dsplMessage "       MS04-011 (HF: KB835732) RCE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS04-011 (HF: KB835732) RCE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003, Windows 2000" "info"
+        dsplMessage "           Affected Module: LSASS service BoF - Remote Code Execution" "info"
+    }
+
+    # MS04-020 (KB841872)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB841872" }
+    if ($hotfix) {
+        dsplMessage "       MS04-020 (HF: KB841872) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS04-020 (HF: KB841872) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows XP, Windows Server 2003, Windows 2000" "info"
+        dsplMessage "           Affected Module: POSIX - Local privilege Escalation" "info"
+    }
+
+    # MS14-040 (KB2975684)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB2975684" }
+    if ($hotfix) {
+        dsplMessage "       MS14-040 (HF: KB2975684) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS14-040 (HF: KB2975684) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2008, Windows 7" "info"
+        dsplMessage "           Affected Module: afd.sys Dangling Pointer - Local privilege Escalation" "info"
+    }
+
+    # MS16-016 (KB3136041)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB3136041" }
+    if ($hotfix) {
+        dsplMessage "       MS16-016 (HF: KB3136041) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS16-016 (HF: KB3136041) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: WebDAV to Address - Local privilege Escalation" "info"
+    }
+
+    # MS15-051 (KB3057191)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB3057191" }
+    if ($hotfix) {
+        dsplMessage "       MS15-051 (HF: KB3057191) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS15-051 (HF: KB3057191) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: win32k.sys - Local privilege Escalation" "info"
+    }
+
+    # MS14-070 (KB2989935)
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB2989935" }
+    if ($hotfix) {
+        dsplMessage "       MS14-070 (HF: KB2989935) LPE patch is installed :)" "success"
+    } else {
+        dsplMessage "       MS14-070 (HF: KB2989935) LPE patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Vista, Windows Server 2008" "info"
+        dsplMessage "           Affected Module: TCP/IP - Local privilege Escalation" "info"
+    }
+
+    # Windows 10 LPE vulnerabilities
+    # CVE-2021-1647: Windows AppX Package Manager Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558993" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-1647: Windows AppX Package Manager patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-1647: Windows AppX Package Manager patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: AppX Package Manager - Local privilege Escalation" "info"
+    }
+
+    # CVE-2021-26401: Windows Print Spooler Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558992" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-26401: Windows Print Spooler patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-26401: Windows Print Spooler patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: Print Spooler - Local privilege Escalation" "info"
+    }
+
+    # CVE-2021-36935: Windows Kernel Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558991" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-36935: Windows Kernel patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-36935: Windows Kernel patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: Kernel - Local privilege Escalation" "info"
+    }
+
+    # Windows 10 RCE vulnerabilities
+
+    # CVE-2021-26413: Windows HTTP.sys Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558994" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-26413: Windows HTTP.sys patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-26413: Windows HTTP.sys patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: HTTP.sys - Remote Code Execution" "info"
+    }
+
+    # CVE-2021-36934: Windows DNS Server Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558993" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-36934: Windows DNS Server patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-36934: Windows DNS Server patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: DNS Server - Remote Code Execution" "info"
+    }
+
+    # CVE-2021-40449: Windows SMBv3 Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558996" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-40449: Windows SMBv3 patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-40449: Windows SMBv3 patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 10" "info"
+        dsplMessage "           Affected Module: SMBv3 - Remote Code Execution" "info"
+    }
+
+    # Windows 11 LPE vulnerabilities
+
+    # CVE-2022-22013: Windows AppX Package Manager Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015564" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-22013: Windows AppX Package Manager patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-22013: Windows AppX Package Manager patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: AppX Package Manager - Local privilege Escalation" "info"
+    }
+
+    # CVE-2022-24491: Windows Print Spooler Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015563" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-24491: Windows Print Spooler patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-24491: Windows Print Spooler patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: Print Spooler - Local privilege Escalation" "info"
+    }
+
+    # CVE-2022-26938: Windows Kernel Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015562" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-26938: Windows Kernel patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-26938: Windows Kernel patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: Kernel - Local privilege Escalation" "info"
+    }
+
+    # Windows 11 RCE vulnerabilities
+
+    # CVE-2022-22014: Windows HTTP.sys Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015565" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-22014: Windows HTTP.sys patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-22014: Windows HTTP.sys patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: HTTP.sys - Remote Code Execution" "info"
+    }
+
+    # CVE-2022-24492: Windows DNS Server Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015564" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-24492: Windows DNS Server patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-24492: Windows DNS Server patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: DNS Server - Remote Code Execution" "info"
+    }
+
+    # CVE-2022-26937: Windows SMBv3 Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015561" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-26937: Windows SMBv3 patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-26937: Windows SMBv3 patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows 11" "info"
+        dsplMessage "           Affected Module: SMBv3 - Remote Code Execution" "info"
+    }
+
+    # Windows Server 2019 LPE vulnerabilities
+
+    # CVE-2021-1647: Windows AppX Package Manager Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558993" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-1647: Windows AppX Package Manager patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-1647: Windows AppX Package Manager patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: AppX Package Manager - Local privilege Escalation" "info"
+    }
+
+    # CVE-2021-26401: Windows Print Spooler Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558992" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-26401: Windows Print Spooler patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-26401: Windows Print Spooler patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: Print Spooler - Local privilege Escalation" "info"
+    }
+
+    # CVE-2021-36935: Windows Kernel Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558991" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-36935: Windows Kernel patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-36935: Windows Kernel patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: Kernel - Local privilege Escalation" "info"
+    }
+
+    # Windows Server 2019 RCE vulnerabilities
+
+    # CVE-2021-26413: Windows HTTP.sys Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558994" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-26413: Windows HTTP.sys patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-26413: Windows HTTP.sys patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: HTTP.sys - Remote Code Execution" "info"
+    }
+
+    # CVE-2021-36934: Windows DNS Server Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558993" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-36934: Windows DNS Server patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-36934: Windows DNS Server patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: DNS Server - Remote Code Execution" "info"
+    }
+
+    # CVE-2021-40449: Windows SMBv3 Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB4558996" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2021-40449: Windows SMBv3 patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2021-40449: Windows SMBv3 patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2019" "info"
+        dsplMessage "           Affected Module: SMBv3 - Remote Code Execution" "info"
+    }
+
+    # Windows Server 2022 LPE vulnerabilities
+
+    # CVE-2022-22013: Windows AppX Package Manager Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015564" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-22013: Windows AppX Package Manager patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-22013: Windows AppX Package Manager patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: AppX Package Manager - Local privilege Escalation" "info"
+    }
+
+    # CVE-2022-24491: Windows Print Spooler Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015563" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-24491: Windows Print Spooler patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-24491: Windows Print Spooler patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: Print Spooler - Local privilege Escalation" "info"
+    }
+
+    # CVE-2022-26938: Windows Kernel Elevation of Privilege Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015562" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-26938: Windows Kernel patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-26938: Windows Kernel patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: Kernel - Local privilege Escalation" "info"
+    }
+
+    # Windows Server 2022 RCE vulnerabilities
+
+    # CVE-2022-22014: Windows HTTP.sys Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015565" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-22014: Windows HTTP.sys patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-22014: Windows HTTP.sys patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: HTTP.sys - Remote Code Execution" "info"
+    }
+
+    # CVE-2022-24492: Windows DNS Server Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015564" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-24492: Windows DNS Server patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-24492: Windows DNS Server patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: DNS Server - Remote Code Execution" "info"
+    }
+
+    # CVE-2022-26937: Windows SMBv3 Remote Code Execution Vulnerability
+    $hotfix = Get-HotFix | Where-Object { $_.HotFixID -eq "KB5015561" }
+    if ($hotfix) {
+        dsplMessage "       CVE-2022-26937: Windows SMBv3 patch is installed :)" "success"
+    } else {
+        dsplMessage "       CVE-2022-26937: Windows SMBv3 patch is NOT installed!" "error"
+        dsplMessage "           Affects: Windows Server 2022" "info"
+        dsplMessage "           Affected Module: SMBv3 - Remote Code Execution" "info"
+    }
+}
+
+function Get-ClearTextPasswords {
+    dsplMessage "Clear-text and Base64 Passwords Search" "info"
+    dsplMessage "=====================================" "info"
+    dsplMessage "       This may take some time." "warning"
+    try {
+        # Define an array of common folders to search
+        $folders = @(
+            "$env:SystemDrive\sysprep",
+            "$env:WINDIR\Panther",
+            "$env:WINDIR\Panther\Unattend",
+            "$env:SystemDrive\inetpub\wwwroot\web.config",
+            "$env:SystemDrive\Program Files\OpenVPN\config",
+            "$env:SystemDrive\ProgramData\Microsoft\Credentials",
+            "$env:APPDATA\FileZilla\recentservers.xml",
+            "$env:APPDATA\FileZilla\sitemanager.xml",
+            "$env:WINDIR\System32\inetsrv\config",
+            "$env:WINDIR\System32\inetsrv\config\applicationHost.config",
+            "$env:WINDIR\System32\inetsrv\config\administration.config",
+            "$env:WINDIR\System32\inetsrv\config\redirection.config",
+            "$env:WINDIR\System32\inetsrv\config\schema",
+            "$env:SystemDrive\inetpub\wwwroot",
+            "$env:SystemDrive\xampp",
+            "$env:SystemDrive\Program Files\IIS Express\config",
+            "$env:SystemDrive\Program Files (x86)\IIS Express\config",
+            "$env:SystemDrive\ProgramData\MySQL\MySQL Server 5.5\data",
+            "$env:SystemDrive\ProgramData\MySQL\MySQL Server 5.6\data",
+            "$env:SystemDrive\ProgramData\MySQL\MySQL Server 5.7\data",
+            "$env:SystemDrive\ProgramData\MySQL\MySQL Server 8.0\data",
+            "$env:SystemDrive\ProgramData\Microsoft\Crypto\RSA\S-1-5-18",
+            "$env:SystemDrive\ProgramData\Microsoft\Credentials",
+            "$env:SystemDrive\ProgramData\Microsoft\Windows\SystemData\",
+            "$env:USERPROFILE\.azure\",
+            "$env:USERPROFILE\.aws",
+            "$env:APPDATA\Roaming\gcloud\",
+            "$env:SystemDrive\Users\Public",
+            "$env:SystemDrive\Windows\SYSVOL\sysvol\",
+            "$env:SystemDrive\Program Files (x86)\hMailServer"
+            #"$env:USERPROFILE\Documents"
+        )
+
+        # Define an array of file extensions or names to search
+        $fileExtensions = @(
+            "*.config",
+            "*.conf",
+            "*.py", 
+            ".pyc", 
+            ".pyi",
+            "*.js", 
+            "*.html", 
+            "*.c", 
+            "*.cpp", 
+            "*.pl", 
+            "*.rb", 
+            "*.java", 
+            "*.php", 
+            "*.bat", 
+            "*.ps1",
+            "*.sh",
+            "*.xml",
+            "*.txt",
+            "*.text", 
+            "*.md",
+            "*.markdown", 
+            "*.toml", 
+            "*.rtf",
+            "*.ini",
+            "*.cfg",
+            "*.ini",
+            "*.id_rsa",
+            "*.id_dsa", 
+            "*.bash_history", 
+            "*.rsa",
+            "*.y*ml",
+            "*.log",
+            "*.bak"
+        )
+
+        # Function to search for clear-text passwords in a file
+        function SearchPasswordsInFile {
+            param(
+                [string]$filePath
+            )
+        
+            try {
+                # Debug output: Show which file is being searched
+                #Write-Host "Searching file: $filePath"
+        
+                $content = Get-Content -Path $filePath -ErrorAction Stop
+        
+                # Define an array of regex patterns to match passwords
+                $passwordPatterns = @(
+                    "(password|passwd|PASSWD|PASSWORD|PWD|pwd|pass|p4ss|p422)=(.+)",               # Common passwords
+                    "(user|username|usr|login)=(.+)",                          # Usernames or logins
+                    "(email|e-mail|mail)=(.+)",                                # Email Scan
+                    "(api_key|api_secret)=(.+)",                               # API tokens or secrets  (token removed from pattern due to vast amount of false positives)
+                    "(access_key|access_token)=(.+)",                          # Access keys or tokens
+                    "(auth_key|auth_token)=(.+)",                              # Authentication keys or tokens
+                    "(client_secret|client_id)=(.+)",                          # Client secrets or IDs
+                    "(db_pass|db_pwd|db_password|dbuser|dbpass)=(.+)",         # Database passwords
+                    "(ftp_pass|ftp_pwd|ftp_password)=(.+)",                    # FTP passwords
+                    "(ssh_pass|ssh_pwd|ssh_password)=(.+)",                    # SSH passwords
+                    "(smtp_pass|smtp_pwd|smtp_password)=(.+)",                 # SMTP passwords
+                    "(rsa_private_key|rsa_public_key)=(.+)",                   # RSA keys
+                    "(ssl_cert_key|ssl_cert_pwd)=(.+)",                        # SSL certificate keys or passwords
+                    "(aes_key|aes_pwd)=(.+)",                                  # AES keys or passwords
+                    "(bcrypt_hash)=(.+)",                                      # Bcrypt hashes
+                    "(jwt_token)=(.+)",                                        # JWT tokens
+                    "(api_secret_key)=(.+)",                                   # API secret keys
+                    "(oauth_token)=(.+)",                                      # OAuth tokens
+                    "(private_key)=(.+)",                                      # Private keys
+                    "(bearer_token)=(.+)",                                     # Bearer tokens
+                    "(client_certificate)=(.+)",                               # Client certificates
+                    "(client_token)=(.+)",                                     # Client tokens
+                    "(refresh_token)=(.+)",                                     # Refresh tokens
+                    "(private)=(.+)"                                           # Sneaky people
+                )
+        
+                foreach ($pattern in $passwordPatterns) {
+                    if ($content -match $pattern) {
+                        dsplMessage "File: $filePath" "info"
+                        dsplMessage "------------------------" "info"
+                        $match3s = $content | Select-String -Pattern $pattern -AllMatches
+                        foreach ($match in $match3s.Matches) {
+                            $passwordLine = $match.Value.Trim()
+                            dsplMessage "Potential password or sensitive information found: $passwordLine" "error"
+                        }
+                        Write-Host ""
+                    }
+                }
+            } catch {
+                dsplMessage "Error reading file: $filePath. $_" "error"
+            }
+        }
+
+        # Loop through folders and search files with specified extensions
+        foreach ($folder in $folders) {
+            if (Test-Path $folder -PathType Container) {
+                dsplMessage "Searching in folder: $folder" "info"
+                
+                foreach ($extension in $fileExtensions) {
+                    $files = Get-ChildItem -Path $folder -Filter $extension -File -Recurse -ErrorAction SilentlyContinue
+                    foreach ($file in $files) {
+                        SearchPasswordsInFile -filePath $file.FullName
+                    }
+                }
+            } else {
+                dsplMessage "Folder $folder does not exist." "info"
+            }
+        }
+
+        # Additional searches based on specific filenames or patterns
+        $additionalFiles = @(
+            "sysprep.inf",
+            "sysprep.xml",
+            "Unattended.xml",
+            "*pass*",
+            "*cred*",
+            "*vnc*"
+        )
+
+        foreach ($filePattern in $additionalFiles) {
+            $files = Get-ChildItem -Path $env:WINDIR -Recurse -File -Filter $filePattern -ErrorAction SilentlyContinue
+            foreach ($file in $files) {
+                SearchPasswordsInFile -filePath $file.FullName
+            }
+        }
+
+    } catch {
+        dsplMessage "Error occurred while searching for clear-text passwords: $_" "error"
+    }
+}
 
 ############################################################
 ##### Main that makes the stuff actually do the stuff. #####
@@ -1491,49 +2370,61 @@ function Get-CommonFolderPermissions {
 # Define functions for different tasks
 function Main {
     if ($Version) {
-        dsplVersion
+        dsplVersiona
         exit 0
     }
 
     # Define the array of functions to call
-    $functionsToCall = @(
-        @{ Name = "SystemInformation"; ScriptBlock = { Get-SystemInformation; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "AvailableDrives"; ScriptBlock = { Get-AvailableDrives; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "AntivirusDetections"; ScriptBlock = { Get-AntivirusDetections; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "LAPSInstallation"; ScriptBlock = { Get-LAPSInstallation; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Get-LSAProtectionStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Get-CredentialGuardStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "UACStatus"; ScriptBlock = { Get-UACStatus; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "SensitiveRegistry"; ScriptBlock = { Get-SensitiveRegistryComponents; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "RecentCommands"; ScriptBlock = { Get-RecentCommands; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "InstalledKB"; ScriptBlock = { Get-InstalledKB; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "RunningServices"; ScriptBlock = { Get-RunningServices; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "PasswordPolicy"; ScriptBlock = { Get-PasswordPolicy; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "LocalUsers"; ScriptBlock = { Get-LocalUsers; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "LocalGroups"; ScriptBlock = { Get-LocalGroups; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "InstalledSoftware"; ScriptBlock = { Get-InstalledSoftware; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "OpenPorts"; ScriptBlock = { Get-OpenPorts; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "Netstat"; ScriptBlock = { Get-Netstat; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "FirewallRules"; ScriptBlock = { Get-FirewallRules; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "NetworkShares"; ScriptBlock = { Get-NetworkShares; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "RecentFiles"; ScriptBlock = { Get-RecentFiles; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "StartupPrograms"; ScriptBlock = { Get-StartupPrograms; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "EventLogs"; ScriptBlock = { Get-EventLogs; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "SystemLogs"; ScriptBlock = { Get-SystemLogs; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "RegistrySettings"; ScriptBlock = { Get-RegistrySettings; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "EnvironmentVariables"; ScriptBlock = { Get-EnvironmentVariables; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "UserSessions"; ScriptBlock = { Get-UserSessions; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "ProcessList"; ScriptBlock = { Get-ProcessList; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "UserRights"; ScriptBlock = { Get-UserRights; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "SystemCertificates"; ScriptBlock = { Get-SystemCertificates; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "USBDevices"; ScriptBlock = { Get-USBDevices; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "Printers"; ScriptBlock = { Get-Printers; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "NetworkConfiguration"; ScriptBlock = { Get-NetworkConfiguration; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Get-RemoteDesktopSessions; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "CommonFolderPermissions"; ScriptBlock = { Get-CommonFolderPermissions; Write-Host "================================================================="; Write-Host "" } }
+    $functionsToCall = @(  
+    ## System Stuff
+        @{ Name = "SystemInformation"; ScriptBlock = { Write-Host ""; Get-SystemInformation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "AvailableDrives"; ScriptBlock = { Write-Host ""; Get-AvailableDrives; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "AntivirusDetections"; ScriptBlock = { Write-Host ""; Get-AntivirusDetections; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RecentCommands"; ScriptBlock = { Write-Host ""; Get-RecentCommands; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "InstalledKB"; ScriptBlock = { Write-Host ""; Get-InstalledKB; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RunningServices"; ScriptBlock = { Write-Host ""; Get-RunningServices; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "InstalledSoftware"; ScriptBlock = { Write-Host ""; Get-InstalledSoftware; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RecentFiles"; ScriptBlock = { Write-Host ""; Get-RecentFiles; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "StartupPrograms"; ScriptBlock = { Write-Host ""; Get-StartupPrograms; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "EventLogs"; ScriptBlock = { Write-Host ""; Get-EventLogs; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SystemLogs"; ScriptBlock = { Write-Host ""; Get-SystemLogs; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RegistrySettings"; ScriptBlock = { Write-Host ""; Get-RegistrySettings; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SensitiveRegistry"; ScriptBlock = { Write-Host ""; Get-SensitiveRegistryComponents; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "EnvironmentVariables"; ScriptBlock = { Write-Host ""; Get-EnvironmentVariables; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "ProcessList"; ScriptBlock = { Write-Host ""; Get-ProcessList; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SystemCertificates"; ScriptBlock = { Write-Host ""; Get-SystemCertificates; Write-Host "================================================================="; Write-Host "" } }
 
-        # Add more functions here as needed
+    ## User Stuff
+        @{ Name = "PasswordPolicy"; ScriptBlock = { Write-Host ""; Get-PasswordPolicy; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LocalUsers"; ScriptBlock = { Write-Host ""; Get-LocalUsers; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LocalGroups"; ScriptBlock = { Write-Host ""; Get-LocalGroups; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LAPSInstallation"; ScriptBlock = { Write-Host ""; Get-LAPSInstallation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "LSAProtectionStatus"; ScriptBlock = { Write-Host ""; Get-LSAProtectionStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "CredentialGuardStatus"; ScriptBlock = { Write-Host ""; Get-CredentialGuardStatus -Verbose; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UACStatus"; ScriptBlock = { Write-Host ""; Get-UACStatus; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UserRights"; ScriptBlock = { Write-Host ""; Get-UserRights; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "UserSessions"; ScriptBlock = { Write-Host ""; Get-UserSessions; Write-Host "================================================================="; Write-Host "" } }
+
+    ## Network Stuff
+        @{ Name = "OpenPorts"; ScriptBlock = { Write-Host ""; Get-OpenPorts; Write-Host "================================================================="; Write-Host "" } }
+    #   @{ Name = "Netstat"; ScriptBlock = { Write-Host ""; Get-Netstat; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "FirewallRules"; ScriptBlock = { Write-Host ""; Get-FirewallRules; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Write-Host ""; Get-RemoteDesktopSessions; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "NetworkConfiguration"; ScriptBlock = { Write-Host ""; Get-NetworkConfiguration; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "NetworkShares"; ScriptBlock = { Write-Host ""; Get-NetworkShares; Write-Host "================================================================="; Write-Host "" } }
+
+    ## Do we actually need it stuff?
+    #   @{ Name = "Printers"; ScriptBlock = { Write-Host ""; Get-Printers; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Check4RCE"; ScriptBlock = { Write-Host ""; Get-PossibleRCELPE; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Check4Passwd"; ScriptBlock = { Write-Host ""; Get-ClearTextPasswords; Write-Host "================================================================="; Write-Host "" } }
+    
+    ## Active Directory and Important Folder Stuff
+    # Doing this last because it can be a bit buggy
+    @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Write-Host ""; Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
+    @{ Name = "CommonFolderPermissions"; ScriptBlock = { Write-Host ""; Get-CommonFolderPermissions; Write-Host "================================================================="; Write-Host "" } }
+    @{ Name = "SharphoundEnum"; ScriptBlock = { Write-Host ""; Get-Sharphound; Write-Host "================================================================="; Write-Host "" } }
+
+        
     )
 
     foreach ($function in $functionsToCall) {

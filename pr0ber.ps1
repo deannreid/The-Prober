@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     The Prober
     The Prober aims to be an all-in-one enumeration tool, like WinPeas but potentially cooler.
@@ -154,6 +154,57 @@ function fncB64Enc {
         Write-Host "Successfully encoded $filePath to base64: $encodedFilePath"
     } catch {
         Write-Host "Failed to encode file to base64: $_"
+    }
+}
+
+function fncCheckADMod {
+    param (
+        [string]$moduleName = 'ActiveDirectory'
+    )
+
+    try {
+        # Check if the module is already imported
+        if (-not (Get-Module -Name $moduleName -ListAvailable -ErrorAction SilentlyContinue)) {
+            # Module not available, attempt to install it
+            dsplMessage "Module $moduleName is not installed. Attempting to install..." "info"
+
+            try {
+                Install-Module -Name $moduleName -Force -Scope CurrentUser -ErrorAction Stop
+                Import-Module -Name $moduleName -ErrorAction Stop
+                dsplMessage "Module $moduleName installed successfully." "success"
+            } catch {
+                dsplMessage "Failed to install module $moduleName. Attempting to download from a different URL..." "error"
+                
+                # Prompt user for an alternate download URL
+                $downloadURL = Read-Host "Enter an alternate URL to download module $moduleName"
+
+                try {
+                    Install-Module -Name $moduleName -Force -Scope CurrentUser -Repository $downloadURL -ErrorAction Stop
+                    Import-Module -Name $moduleName -ErrorAction Stop
+                    dsplMessage "Module $moduleName installed successfully from $downloadURL." "success"
+                } catch {
+                    dsplMessage "Failed to install module $moduleName from $downloadURL. Skipping AD scans." "error"
+                    return $false
+                }
+            }
+        } else {
+            # Module already installed, import it
+            Import-Module -Name $moduleName -ErrorAction Stop
+            dsplMessage "Module $moduleName is already installed." "info"
+        }
+
+        # Check if the module was imported successfully
+        if (Get-Module -Name $moduleName -ListAvailable -ErrorAction SilentlyContinue) {
+            return $true
+            @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Write-Host ""; Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
+        } else {
+            dsplMessage "Failed to import module $moduleName. Skipping AD scans." "error"
+            return $false
+        }
+
+    } catch {
+        dsplMessage "Error occurred while checking or installing module $moduleName : $_" "error"
+        return $false
     }
 }
 
@@ -1626,7 +1677,7 @@ function Get-Sharphound {
         
         try {
             # Define the URL for the latest SharpHound release
-            $url = "https://github.com/BloodHoundAD/SharpHound/releases/latest/download/SharpHound.zip"
+            $url = "https://github.com/BloodHoundAD/SharpHound/releases/download/v2.5.4/SharpHound-v2.5.4.zip"
             $zipPath = "$PSScriptRoot\SharpHound.zip"
             $extractPath = "$PSScriptRoot\SharpHound"
             
@@ -2199,7 +2250,6 @@ function Get-ClearTextPasswords {
     try {
         # Define an array of common folders to search
         $folders = @(
-            "$env:SystemDrive\sysprep",
             "$env:WINDIR\Panther",
             "$env:WINDIR\Panther\Unattend",
             "$env:SystemDrive\inetpub\wwwroot\web.config",
@@ -2220,16 +2270,13 @@ function Get-ClearTextPasswords {
             "$env:SystemDrive\ProgramData\MySQL\MySQL Server 5.6\data",
             "$env:SystemDrive\ProgramData\MySQL\MySQL Server 5.7\data",
             "$env:SystemDrive\ProgramData\MySQL\MySQL Server 8.0\data",
-            "$env:SystemDrive\ProgramData\Microsoft\Crypto\RSA\S-1-5-18",
-            "$env:SystemDrive\ProgramData\Microsoft\Credentials",
-            "$env:SystemDrive\ProgramData\Microsoft\Windows\SystemData\",
+            "$env:SystemDrive\ProgramData",
             "$env:USERPROFILE\.azure\",
             "$env:USERPROFILE\.aws",
             "$env:APPDATA\Roaming\gcloud\",
             "$env:SystemDrive\Users\Public",
             "$env:SystemDrive\Windows\SYSVOL\sysvol\",
             "$env:SystemDrive\Program Files (x86)\hMailServer"
-            #"$env:USERPROFILE\Documents"
         )
 
         # Define an array of file extensions or names to search
@@ -2265,22 +2312,30 @@ function Get-ClearTextPasswords {
             "*.bash_history", 
             "*.rsa",
             "*.y*ml",
-            "*.log",
             "*.bak"
         )
+
+        # Define the output file for potential passwords in the present working directory
+        $outputFilePath = Join-Path -Path (Get-Location) -ChildPath "potentialpasswords.txt"
+
+        # Ensure the output directory exists
+        $outputDirectory = [System.IO.Path]::GetDirectoryName($outputFilePath)
+        if (-not (Test-Path -Path $outputDirectory)) {
+            New-Item -Path $outputDirectory -ItemType Directory | Out-Null
+        }
 
         # Function to search for clear-text passwords in a file
         function SearchPasswordsInFile {
             param(
                 [string]$filePath
             )
-        
+
             try {
                 # Debug output: Show which file is being searched
-                #Write-Host "Searching file: $filePath"
-        
+                Write-Host "Searching file: $filePath"
+
                 $content = Get-Content -Path $filePath -ErrorAction Stop
-        
+
                 # Define an array of regex patterns to match passwords
                 $passwordPatterns = @(
                     "(password|passwd|PASSWD|PASSWORD|PWD|pwd|pass|p4ss|p422)=(.+)",               # Common passwords
@@ -2305,18 +2360,24 @@ function Get-ClearTextPasswords {
                     "(bearer_token)=(.+)",                                     # Bearer tokens
                     "(client_certificate)=(.+)",                               # Client certificates
                     "(client_token)=(.+)",                                     # Client tokens
-                    "(refresh_token)=(.+)",                                     # Refresh tokens
+                    "(refresh_token)=(.+)",                                    # Refresh tokens
                     "(private)=(.+)"                                           # Sneaky people
                 )
-        
+
                 foreach ($pattern in $passwordPatterns) {
                     if ($content -match $pattern) {
                         dsplMessage "File: $filePath" "info"
                         dsplMessage "------------------------" "info"
-                        $match3s = $content | Select-String -Pattern $pattern -AllMatches
-                        foreach ($match in $match3s.Matches) {
+                        $matches = $content | Select-String -Pattern $pattern -AllMatches
+                        foreach ($match in $matches.Matches) {
                             $passwordLine = $match.Value.Trim()
-                            dsplMessage "Potential password or sensitive information found: $passwordLine" "error"
+                            if ($passwordLine.Length -lt 30) {
+                                dsplMessage "Potential password or sensitive information found: $passwordLine" "error"
+                                Add-Content -Path $outputFilePath -Value "File: $filePath`n$passwordLine`n"
+                            } else {
+                                Add-Content -Path $outputFilePath -Value "File: $filePath`n"
+                                break
+                            }
                         }
                         Write-Host ""
                     }
@@ -2364,6 +2425,42 @@ function Get-ClearTextPasswords {
     }
 }
 
+function Get-NewSMBShare {
+
+    $FolderPath = Get-Location
+
+    # Check Folder Exists
+    # If not, Create it
+    if (-Not (Test-Path $FolderPath)) {
+        dsplMessage "Folder $FolderPath doesn't Exist!" "error"
+        New-Item -Path $FolderPath -ItemType Directory -Force
+        dsplMessage "Folder $FolderPath created!" "success"
+    } else {
+        dsplMessage "Folder $FolderPath unable to be created!" "error"
+    }
+
+    # Create SMB Share
+    try {
+        New-SmbShare -Name "Sus SMB Share" -Path $FolderPath -Description "Not a suspicious SMB Share" -FullAccess Everyone
+        dsplMessage "SMB Share 'Sus SMB Share' created successfully at '$FolderPath'."
+    } catch {
+        dsplMessage "SMB Share 'Sus SMB Share' created unsuccessfully at '$FolderPath'." "error"
+        dsplMessage "$_" "error"
+    }
+
+    #Nony Mus Access
+    try {
+        dsplMessage "         Setting SMB Share to Anonymouse Access '$FolderPath'." "info"
+        $share = Get-SmbShare -Name "Sus SMB Share"
+        $share | Set-SmbShare -FolderEnumerationMode AccessBased -Force
+        dsplMessage "         SMB Share set to Anonymouse Access '$FolderPath'." "success"
+    } catch {
+        dsplMessage "         SMB Share Broke '$FolderPath'." "error"
+        dsplMessage "$_" "error"
+    }
+
+}
+
 ############################################################
 ##### Main that makes the stuff actually do the stuff. #####
 ############################################################
@@ -2377,6 +2474,7 @@ function Main {
     # Define the array of functions to call
     $functionsToCall = @(  
     ## System Stuff
+<#      
         @{ Name = "SystemInformation"; ScriptBlock = { Write-Host ""; Get-SystemInformation; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "AvailableDrives"; ScriptBlock = { Write-Host ""; Get-AvailableDrives; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "AntivirusDetections"; ScriptBlock = { Write-Host ""; Get-AntivirusDetections; Write-Host "================================================================="; Write-Host "" } }
@@ -2407,24 +2505,26 @@ function Main {
 
     ## Network Stuff
         @{ Name = "OpenPorts"; ScriptBlock = { Write-Host ""; Get-OpenPorts; Write-Host "================================================================="; Write-Host "" } }
-    #   @{ Name = "Netstat"; ScriptBlock = { Write-Host ""; Get-Netstat; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Netstat"; ScriptBlock = { Write-Host ""; Get-Netstat; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "FirewallRules"; ScriptBlock = { Write-Host ""; Get-FirewallRules; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "RemoteDesktopSessions"; ScriptBlock = { Write-Host ""; Get-RemoteDesktopSessions; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "NetworkConfiguration"; ScriptBlock = { Write-Host ""; Get-NetworkConfiguration; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "NetworkShares"; ScriptBlock = { Write-Host ""; Get-NetworkShares; Write-Host "================================================================="; Write-Host "" } }
 
     ## Do we actually need it stuff?
-    #   @{ Name = "Printers"; ScriptBlock = { Write-Host ""; Get-Printers; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "Printers"; ScriptBlock = { Write-Host ""; Get-Printers; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "Check4RCE"; ScriptBlock = { Write-Host ""; Get-PossibleRCELPE; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "Check4Passwd"; ScriptBlock = { Write-Host ""; Get-ClearTextPasswords; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SMBSetup"; ScriptBlock = { Write-Host ""; Get-NewSMBShare; Write-Host "================================================================="; Write-Host "" } }
     
     ## Active Directory and Important Folder Stuff
     # Doing this last because it can be a bit buggy
-    @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Write-Host ""; Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
-    @{ Name = "CommonFolderPermissions"; ScriptBlock = { Write-Host ""; Get-CommonFolderPermissions; Write-Host "================================================================="; Write-Host "" } }
-    @{ Name = "SharphoundEnum"; ScriptBlock = { Write-Host ""; Get-Sharphound; Write-Host "================================================================="; Write-Host "" } }
-
-        
+        @{ Name = "ActiveDirectoryInformation"; ScriptBlock = { Write-Host ""; Get-ActiveDirectoryInformation; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "CommonFolderPermissions"; ScriptBlock = { Write-Host ""; Get-CommonFolderPermissions; Write-Host "================================================================="; Write-Host "" } }
+        @{ Name = "SharphoundEnum"; ScriptBlock = { Write-Host ""; Get-Sharphound; Write-Host "================================================================="; Write-Host "" } }
+    
+    
+    #>
     )
 
     foreach ($function in $functionsToCall) {

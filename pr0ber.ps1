@@ -80,6 +80,15 @@ function dsplBlurb {
         "                          Enumerating services: Like snooping on your neighbor's Wi-Fi, but legal.`n",
         "                          Exploring services: The geek's way of saying 'I'm just curious!`n",
         "                          Discovering endpoints: Like a treasure hunt, but with more IP addresses.`n",
+        "                          Mapping the network: It's like drawing a treasure map, but with routers and switches.`n",
+        "                          Sniffing packets: Catching data in the air like a digital butterfly net.`n",
+        "                          Analyzing traffic: It's like being a detective, but for bits and bytes.`n",
+        "                          Tracing routes: Following the breadcrumbs left by packets on their journey.`n",
+        "                          Testing connections: Making sure all your digital handshakes are firm.`n",
+        "                          Monitoring logs: Reading between the lines of your network's diary.`n",
+        "                          Syncing data: Like getting everyone on the same page in a virtual choir.`n",
+        "                          Navigating the web: Sailing the seas of the internet with a trusty map.`n",
+        "                          Deploying proxies: Sending a digital bodyguard to deliver your data.`n",
         "                          Probing the depths: Finding the hidden gems in your network.`n"
     )
     $randomIndex = Get-Random -Minimum 0 -Maximum $blurbs.Length
@@ -242,16 +251,16 @@ function Get-SystemInformation {
 
     try {
         # Attempt to get system information using WMI
-        $operatingSystem = (Get-WmiObject Win32_OperatingSystem).Caption
-        $architecture = (Get-WmiObject Win32_ComputerSystem).SystemType
+        $operatingSystem = (Get-CimInstance Win32_OperatingSystem).Caption
+        $architecture = (Get-CimInstance Win32_ComputerSystem).SystemType
         $currentUser = $env:USERNAME
-        $lastBootTime = (Get-WmiObject Win32_OperatingSystem).LastBootUpTime
+        $lastBootTime = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
         $lastBootTime = [Management.ManagementDateTimeConverter]::ToDateTime($lastBootTime)
-        $uptime = (Get-Date) - (Get-WmiObject Win32_OperatingSystem).ConvertToDateTime((Get-WmiObject Win32_OperatingSystem).LastBootUpTime)
-        $bios = Get-WmiObject Win32_BIOS
-        $totalMemoryGB = [math]::Round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
-        $processor = Get-WmiObject Win32_Processor
-        $systemDrive = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
+        $uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).ConvertToDateTime((Get-CimInstance Win32_OperatingSystem).LastBootUpTime)
+        $bios = Get-CimInstance Win32_BIOS
+        $totalMemoryGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+        $processor = Get-CimInstance Win32_Processor
+        $systemDrive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
 
         # Display system information retrieved from WMI
         dsplMessage "Operating System: $operatingSystem" "warning"
@@ -273,12 +282,18 @@ function Get-SystemInformation {
         dsplMessage "Failed to retrieve system information using WMI. Using systeminfo.exe." "warning"
         
         # Use systeminfo.exe command to get system information
-        $systeminfoOutput = Invoke-Expression "systeminfo.exe"
+        $systeminfoOutput = systeminfo.exe
 
-        # Display system information from systeminfo.exe output
-        dsplMessage $systeminfoOutput "info"
+        # Parse systeminfo output
+        $parsedOutput = $systeminfoOutput | Select-String -Pattern "OS Name", "OS Version", "System Manufacturer", "System Model", "Total Physical Memory", "Available Physical Memory", "System Type", "BIOS Version"
+
+        # Display parsed system information
+        foreach ($line in $parsedOutput) {
+            dsplMessage $line.ToString().Trim() "info"
+        }
     }
 }
+
 
 function Get-AvailableDrives {
     dsplMessage "Available Drives" "info"
@@ -316,7 +331,7 @@ function Get-AntivirusDetections {
     Write-Host "================"
 
     # Retrieve antivirus information using WMI
-    $antivirus = Get-WmiObject -Namespace "root\SecurityCenter2" -Class AntiVirusProduct
+    $antivirus = Get-CimInstance -Namespace "root\SecurityCenter2" -Class AntiVirusProduct
 
     if ($antivirus) {
         foreach ($product in $antivirus) {
@@ -352,7 +367,7 @@ function Get-InstalledKB {
     Write-Host "================="
 
     # Retrieve installed KB updates using WMI and sort by InstalledOn descending
-    $installedKB = Get-WmiObject -Class Win32_QuickFixEngineering | Sort-Object -Property InstalledOn -Descending
+    $installedKB = Get-CimInstance -ClassName Win32_QuickFixEngineering | Sort-Object -Property InstalledOn -Descending
 
     if ($installedKB) {
         foreach ($kb in $installedKB) {
@@ -480,8 +495,8 @@ function Get-LocalUsers {
     dsplMessage "Local User Accounts" "info"
     Write-Host "==================="
     try {
-        # Retrieve local user accounts using Get-WmiObject
-        $localUsers = Get-WmiObject -Class Win32_UserAccount | Where-Object { $_.LocalAccount -eq $true }
+        # Retrieve local user accounts using Get-CimInstance
+        $localUsers = Get-CimInstance -ClassName Win32_UserAccount | Where-Object { $_.LocalAccount -eq $true }
         if ($localUsers) {
             foreach ($user in $localUsers) {
                 Write-Host "User Name: $($user.Name)"
@@ -510,8 +525,8 @@ function Get-LocalGroups {
     Write-Host "============"
 
     try {
-        # Retrieve local groups using Get-WmiObject
-        $localGroups = Get-WmiObject -Class Win32_Group | Where-Object { $_.LocalAccount -eq $true }
+        # Retrieve local groups using Get-CimInstance
+        $localGroups = Get-CimInstance -ClassName Win32_Group | Where-Object { $_.LocalAccount -eq $true }
         if ($localGroups) {
             foreach ($group in $localGroups) {
                 Write-Host "Group Name: $($group.Name)"
@@ -727,7 +742,7 @@ function Get-NetworkShares {
 
     try {
         # Get network shares using WMI
-        $shares = Get-WmiObject -Class Win32_Share -ErrorAction Stop
+        $shares = Get-CimInstance -ClassName Win32_Share -ErrorAction Stop
 
         # Display network shares
         foreach ($share in $shares) {
@@ -1093,7 +1108,7 @@ function Get-Printers {
     Write-Host "====================="
 
     try {
-        $printers = Get-WmiObject -Class Win32_Printer
+        $printers = Get-CimInstance -ClassName Win32_Printer
 
         if ($printers) {
             foreach ($printer in $printers) {
@@ -1116,7 +1131,7 @@ function Get-NetworkConfiguration {
 
     try {
         # Get network adapters
-        $networkAdapters = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'
+        $networkAdapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'
 
         if ($networkAdapters) {
             foreach ($adapter in $networkAdapters) {
@@ -2474,14 +2489,14 @@ function Main {
     # Define the array of functions to call
     $functionsToCall = @(  
     ## System Stuff
-<#      
+     
         @{ Name = "SystemInformation"; ScriptBlock = { Write-Host ""; Get-SystemInformation; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "AvailableDrives"; ScriptBlock = { Write-Host ""; Get-AvailableDrives; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "AntivirusDetections"; ScriptBlock = { Write-Host ""; Get-AntivirusDetections; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "RecentCommands"; ScriptBlock = { Write-Host ""; Get-RecentCommands; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "InstalledKB"; ScriptBlock = { Write-Host ""; Get-InstalledKB; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "RunningServices"; ScriptBlock = { Write-Host ""; Get-RunningServices; Write-Host "================================================================="; Write-Host "" } }
-        @{ Name = "InstalledSoftware"; ScriptBlock = { Write-Host ""; Get-InstalledSoftware; Write-Host "================================================================="; Write-Host "" } }
+<#         @{ Name = "InstalledSoftware"; ScriptBlock = { Write-Host ""; Get-InstalledSoftware; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "RecentFiles"; ScriptBlock = { Write-Host ""; Get-RecentFiles; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "StartupPrograms"; ScriptBlock = { Write-Host ""; Get-StartupPrograms; Write-Host "================================================================="; Write-Host "" } }
         @{ Name = "EventLogs"; ScriptBlock = { Write-Host ""; Get-EventLogs; Write-Host "================================================================="; Write-Host "" } }
@@ -2546,12 +2561,12 @@ try {
     fncVerifyPSVersion
     fncConfigCheck
     if (fncCheckIfAdmin) {
-        dsplMessage "Administrator privileges detected." "info"
+        dsplMessage "Administrator privileges detected." "success"
     } else {
-        dsplMessage "No administrator privileges detected." "info"
+        dsplMessage "No administrator privileges detected." "warning"
     }
 
-    $system = (Get-WmiObject Win32_OperatingSystem).Caption
+    $system = (Get-CimInstance Win32_OperatingSystem).Caption
     dsplMessage "Detected Operating System: $system" "info"
     Write-Host ""
 

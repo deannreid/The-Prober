@@ -18,4 +18,4 @@
 ```
 Captures a variety of system information, saving results to the specified folder in separate files for each test and encodes the full output to B64 to easily get it off the box.
 
-**Legal Disclaimer**: Don't be a dick. Only use this if you are legally allowed to do so.
+**Legal Disclaimer**: Please don't be a dick. Only use this if you are legally allowed to do so.
